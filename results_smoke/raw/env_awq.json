@@ -1,0 +1,15 @@
+{
+  "python": "3.10.2",
+  "platform": "win32",
+  "gpu_used_mib_start": 134.0,
+  "torch": "2.13.0+cu130",
+  "cuda_available": true,
+  "gpu_name": "NVIDIA GeForce RTX 3050 Laptop GPU",
+  "gpu_vram_mib": 4095.5,
+  "cuda_capability": "8.6",
+  "transformers": "4.51.3",
+  "vllm": null,
+  "llama_cpp": null,
+  "autoawq": "0.2.9",
+  "auto_gptq": "0.7.1"
+}
