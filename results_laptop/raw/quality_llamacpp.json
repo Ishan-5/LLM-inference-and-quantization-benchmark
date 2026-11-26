@@ -1,0 +1,42 @@
+{
+  "backend": "llamacpp",
+  "model_id": "bartowski/Qwen2.5-0.5B-Instruct-GGUF",
+  "dtype": "float16",
+  "perplexity": 23.641736658789117,
+  "perplexity_nll": 3.1630136525633796,
+  "perplexity_tokens": 734,
+  "perplexity_note": "",
+  "mmlu_accuracy_pct": 30.0,
+  "mmlu_correct": 6,
+  "mmlu_total": 20,
+  "mmlu_note": "",
+  "mmlu_predictions": [
+    0,
+    0,
+    0,
+    3,
+    3,
+    0,
+    1,
+    3,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0
+  ],
+  "mmlu_subjects": [
+    "abstract_algebra",
+    "anatomy",
+    "college_computer_science",
+    "high_school_mathematics",
+    "miscellaneous"
+  ]
+}
