@@ -12,7 +12,7 @@
 
 One model. Four serving strategies. One fair workload. Real latency, throughput, VRAM, MMLU, and perplexity numbers on a Tesla T4.
 
-[Final report](results/tradeoff_table.md) · [Summary CSV](results/summary.csv) · [Raw evidence](results/raw/) · [Colab steps](COLAB_STEPS.md) · [Local run](LOCAL_LAPTOP.md)
+[Live dashboard](https://ishan-5.github.io/LLM-inference-and-quantization-benchmark/) · [Final report](results/tradeoff_table.md) · [Summary CSV](results/summary.csv) · [Raw evidence](results/raw/) · [Colab steps](COLAB_STEPS.md) · [Local run](LOCAL_LAPTOP.md)
 
 </div>
 
@@ -192,7 +192,10 @@ Useful flags:
 ```text
 .
 ├── configs/                 # final T4 config + reduced laptop config
-├── docs/assets/             # animated SVG pipeline and result bars
+├── docs/                    # GitHub Pages dashboard + animated SVGs
+│   ├── index.html           # interactive results dashboard
+│   ├── assets/              # animated SVG pipeline and result bars
+│   └── data/                # dashboard copy of summary.json
 ├── notebooks/               # Colab quickstart
 ├── scripts/                 # bootstrap, full run, Windows helpers
 ├── src/llmbench/
@@ -241,6 +244,7 @@ Known approximation: llama.cpp streaming reports content chunks, so token arriva
 
 ## Final deliverables
 
+- [Live dashboard](https://ishan-5.github.io/LLM-inference-and-quantization-benchmark/) — interactive charts and headline table.
 - [`results/tradeoff_table.md`](results/tradeoff_table.md) — final table, recommendation, caveats.
 - [`results/summary.csv`](results/summary.csv) — numbers for charts.
 - [`results/summary.json`](results/summary.json) — machine-readable winner and summaries.
