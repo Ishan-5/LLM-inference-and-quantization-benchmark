@@ -254,3 +254,8 @@ Known approximation: llama.cpp streaming reports content chunks, so token arriva
 
 
 Numbers come from the generated report, not from a template.
+
+
+<p align="center">
+  Built by <b><a href="https://github.com/Ishan-5">Devansh Kumar Pandey (Ishan)</a></b> · <a href="https://linkedin.com/in/devansh584">LinkedIn</a>
+</p>
