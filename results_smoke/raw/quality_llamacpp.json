@@ -1,0 +1,42 @@
+{
+  "backend": "llamacpp",
+  "model_id": "bartowski/Qwen2.5-0.5B-Instruct-GGUF",
+  "dtype": "float16",
+  "perplexity": null,
+  "perplexity_nll": null,
+  "perplexity_tokens": 0,
+  "perplexity_note": "logprobs is not supported for models created with logits_all=False",
+  "mmlu_accuracy_pct": 15.0,
+  "mmlu_correct": 3,
+  "mmlu_total": 20,
+  "mmlu_note": "",
+  "mmlu_predictions": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "mmlu_subjects": [
+    "abstract_algebra",
+    "anatomy",
+    "college_computer_science",
+    "high_school_mathematics",
+    "miscellaneous"
+  ]
+}
