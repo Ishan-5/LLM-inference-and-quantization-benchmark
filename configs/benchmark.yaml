@@ -1,0 +1,64 @@
+# Edit this file to change the workload, hardware assumptions, or models.
+results_dir: results
+
+benchmark:
+  prompts_per_level: 32        # requests per concurrency level
+  concurrency_levels: [1, 4, 8, 16]
+  repeats: 1                   # increase to 2-3 for more stable p95
+  warmup_requests: 4
+  input_tokens: 128
+  max_new_tokens: 128
+  temperature: 0.0
+  top_p: 1.0
+  seed: 42
+  timeout_s: 600
+  results_dir: results
+
+quality:
+  perplexity_chars: 6000
+  perplexity_window: 1024
+  mmlu_subjects:
+    - abstract_algebra
+    - anatomy
+    - college_computer_science
+    - high_school_mathematics
+    - miscellaneous
+  mmlu_examples: 40
+  seed: 42
+  max_acceptable_quality_loss_pp: 2.0
+
+backends:
+  hf:
+    model_id: Qwen/Qwen2.5-1.5B-Instruct
+    dtype: float16
+    max_model_len: 2048
+    device_map: auto
+
+  vllm:
+    model_id: Qwen/Qwen2.5-1.5B-Instruct
+    dtype: float16
+    max_model_len: 2048
+    gpu_memory_utilization: 0.85
+    tensor_parallel_size: 1
+
+  llamacpp:
+    model_id: bartowski/Qwen2.5-1.5B-Instruct-GGUF
+    gguf_file: Qwen2.5-1.5B-Instruct-Q4_K_M.gguf
+    n_ctx: 2048
+    n_gpu_layers: -1
+    n_batch: 512
+    chat_format: null
+
+  awq:
+    model_id: Qwen/Qwen2.5-1.5B-Instruct-AWQ
+    dtype: float16
+    max_model_len: 2048
+    device_map: auto
+    fuse_layers: true
+
+  gptq:
+    model_id: Qwen/Qwen2.5-1.5B-Instruct-GPTQ-Int4
+    dtype: float16
+    max_model_len: 2048
+    device_map: auto
+    fuse_layers: true
