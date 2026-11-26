@@ -1,97 +1,160 @@
+<div align="center">
+
 # LLM Inference & Quantization Benchmark
 
-A portfolio-grade benchmark for the question AI infra teams actually ask:
+![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
+![CUDA](https://img.shields.io/badge/CUDA-T4-76B900?logo=nvidia&logoColor=white)
+![vLLM](https://img.shields.io/badge/vLLM-0.34-blue)
+![Commits](https://img.shields.io/badge/commits-86-brightgreen)
+![Results](https://img.shields.io/badge/results-4%20backends%20passed-success)
 
-> **How fast and cheap can we run a useful small model, and what quality do we give up?**
+**How fast and cheap can we run a useful small model — and what quality do we give up?**
 
-This project serves **one** open model (`Qwen2.5-1.5B-Instruct`) through four serving setups, applies the **same synthetic concurrent workload** to each, measures latency/throughput/memory, then runs a **fixed quality eval** (WikiText perplexity + a small MMLU subset). It produces a tradeoff table and a data-backed recommendation.
+One model. Four serving strategies. One fair workload. Real latency, throughput, VRAM, MMLU, and perplexity numbers on a Tesla T4.
 
-It is deliberately the opposite of a model-router project: this is systems/infra, not "which API to call."
+[Final report](results/tradeoff_table.md) · [Summary CSV](results/summary.csv) · [Raw evidence](results/raw/) · [Colab steps](COLAB_STEPS.md) · [Local run](LOCAL_LAPTOP.md)
 
----
-
-## Why this is a strong project
-
-- **Hiring-relevant skills:** continuous batching, KV-cache behavior, quantization, memory bandwidth, p95 latency, GPU memory accounting.
-- **Reproducible:** fixed seed, fixed prompts, fixed eval subset, exact package versions saved in `results/raw/env_*.json`.
-- **Cheap:** a free Colab/Kaggle **T4 16 GB** is enough.
-- **Not just tool output:** the report explains *why* the winner wins (batching, KV cache, memory traffic), which is the part that separates a project from a blog post.
+</div>
 
 ---
 
-## The four setups
+## Animated pipeline
 
-| Setup | Backend implementation | What it demonstrates |
-|---|---|---|
-| `hf` | Plain `transformers` + PyTorch, FP16 | Honest baseline; static batching, no KV paging |
-| `vllm` | vLLM async engine, FP16 | PagedAttention + continuous batching under concurrency |
-| `llamacpp` | `llama-cpp-python` with Q4_K_M GGUF | Lightweight runtime, quantized kernels, GPU-offload behavior |
-| `awq` | AutoAWQ 4-bit | Activation-aware weight quantization; memory-bandwidth win |
-| `gptq` | AutoGPTQ INT4 (optional 5th) | Alternative 4-bit family; useful comparison to AWQ |
+<img src="docs/assets/pipeline.svg" alt="Animated benchmark pipeline" width="100%">
 
-All use the same base model so the comparison is about **serving strategy**, not model capability.
+<img src="docs/assets/results_bars.svg" alt="Animated throughput chart" width="100%">
+
+> Both graphics are plain SVG with no JavaScript. Reload the page to replay the animation.
+
+---
+
+## Final result — Tesla T4 16 GB
+
+Qwen2.5-1.5B-Instruct · concurrency 1 / 4 / 8 / 16 · greedy decoding · 128 input tokens · 128 max new tokens.
+
+| Setup | Out tok/s @16 | Total tok/s @16 | E2E p95 ms | TTFT p95 ms | Peak GPU MiB | MMLU % | WikiText PPL | ΔMMLU | Speedup vs HF |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **vllm** | **809.97** | **1,656.85** | **2,523.64** | 115.07 | 12,968 | **57.50** | **28.89** | **+0.00** | **2.13×** |
+| hf | 379.90 | 777.11 | 5,733.60 | **76.33** | 4,380 | 57.50 | 28.90 | +0.00 | 1.00× |
+| awq | 222.10 | 453.52 | 9,264.46 | 130.31 | **2,588** | 47.50 | 30.81 | −10.00 | 0.58× |
+| llamacpp | 5.26 | 10.00 | 365,643.37 | 345,755.96 | 450 | 55.00 | 29.93 | −2.50 | 0.01× |
+
+**Winner: `vllm`.** It delivers **2.13×** the throughput of plain Transformers at concurrency 16, with **no MMLU loss** and slightly better perplexity.
+
+```mermaid
+xychart-beta
+    title "Output tokens per second at 16 users"
+    x-axis ["vllm", "hf", "awq", "llamacpp"]
+    y-axis "tokens / second" 0 --> 900
+    bar [809.97, 379.90, 222.10, 5.26]
+```
+
+```mermaid
+xychart-beta
+    title "Peak GPU memory (MiB)"
+    x-axis ["vllm", "hf", "awq", "llamacpp"]
+    y-axis "MiB" 0 --> 14000
+    bar [12968, 4380, 2588, 450]
+```
+
+---
+
+## What this project actually tests
+
+This is a **systems/infra** benchmark, not a model-quality leaderboard. The base model is fixed; only the serving strategy changes.
+
+| Setup | Implementation | What it demonstrates |
+| --- | --- | --- |
+| `hf` | Plain `transformers` + PyTorch FP16 | Honest baseline; static batching, no KV paging |
+| `vllm` | vLLM async engine FP16 | PagedAttention + continuous batching under concurrency |
+| `llamacpp` | `llama-cpp-python` with Q4_K_M GGUF | Lightweight runtime, quantized kernels, small memory footprint |
+| `awq` | AutoAWQ INT4 | Activation-aware weight quantization; VRAM and bandwidth tradeoff |
+| `gptq` | AutoGPTQ INT4 (optional) | Alternative 4-bit family; skipped in the final run because `auto_gptq` was unavailable |
+
+All four final backends produced **0 benchmark errors**, non-zero output tokens, and valid GPU-memory samples. Environment versions are saved in `results/raw/env_*.json`.
+
+---
+
+## Harness architecture
+
+```mermaid
+flowchart LR
+    C["configs/benchmark.yaml"] --> P["Deterministic prompt pool<br/>seed 42 · 128 input tokens"]
+    P --> S["Separate subprocess per backend<br/>no CUDA allocator contamination"]
+    S --> B1["hf"]
+    S --> B2["vllm"]
+    S --> B3["llamacpp"]
+    S --> B4["awq"]
+    B1 --> M["Metrics<br/>tok/s · TTFT · E2E · TPOT · VRAM"]
+    B2 --> M
+    B3 --> M
+    B4 --> M
+    B1 --> Q["Quality gate<br/>MMLU subset · WikiText PPL"]
+    B2 --> Q
+    B3 --> Q
+    B4 --> Q
+    M --> R["results/tradeoff_table.md"]
+    Q --> R
+```
+
+Each backend runs in its own process. Mixing vLLM, AWQ, and Transformers in one Python process causes CUDA allocator and graph conflicts, so the harness isolates them deliberately.
 
 ---
 
 ## Metrics
 
 | Metric | Why it matters |
-|---|---|
-| Output tokens/sec | Main serving throughput number |
+| --- | --- |
+| Output tokens/sec | Primary serving throughput number |
 | Total tokens/sec | Includes prompt processing; useful for long-input workloads |
 | TTFT p50 / p95 | Time to first token; perceived responsiveness |
 | E2E p50 / p95 | Full request latency; SLA-relevant tail number |
 | TPOT p95 | Inter-token latency; streaming smoothness |
-| Peak GPU MiB | Deployment cost / whether the model fits alongside other work |
+| Peak GPU MiB | Deployment cost and whether the model fits alongside other work |
 | WikiText perplexity | Generic language-model quality regression |
 | MMLU subset accuracy | Task-level quality regression, reported in percentage points |
 
-Quality columns are reported as deltas against the `hf` baseline: `ΔMMLU` in percentage points and `ΔPPL` as absolute perplexity change.
+Quality columns are deltas against the `hf` baseline: `ΔMMLU` in percentage points and `ΔPPL` as absolute perplexity change. The configured gate is `max_acceptable_quality_loss_pp: 2.0`.
 
 ---
 
-## Quickstart
+## What I found
 
-### Option A — Colab T4 (recommended)
+**1. Continuous batching is the headline win.** vLLM reaches 810 out tok/s at 16 users versus 380 for HF. Its advantage grows with concurrency because new requests enter as soon as a sequence finishes; HF waits for the slowest member of a static batch.
 
-1. In this folder, create a zip of the project (or clone your repo into Colab).
-2. In Colab: **Runtime → Change runtime type → T4 GPU**.
-3. Upload/unzip the project so `README.md` and `scripts/` are visible.
-4. Run:
+**2. Paged KV cache keeps the tail small.** vLLM E2E p95 is 2,524 ms versus 5,734 ms for HF. PagedAttention reduces fragmentation and keeps more concurrent sequences resident.
 
-```bash
+**3. 4-bit quantization saves memory, not automatically time.** AWQ uses only 2,588 MiB — 80% less than HF — but it is slower here (222 tok/s) and loses 10 MMLU points. On a bandwidth-bound T4, custom 4-bit kernels can lose at larger batches. The correct claim is *on this hardware, at this concurrency, with this kernel stack*, not "quantization is always faster."
+
+**4. llama.cpp is a deployment tradeoff, not a throughput winner here.** It uses just 450 MiB and keeps 55% MMLU, but the measured path processes concurrent requests sequentially, so its rows are repeated single-stream measurements rather than shared-server batching.
+
+**5. HF is the control, not the punchline.** Its rising tail latency is what makes the other numbers meaningful.
+
+---
+
+## Reproduce it
+
+### Colab T4 — recommended
+
+```python
 !bash scripts/bootstrap_colab.sh
 !python -m llmbench.cli doctor
-```
-
-5. Smoke test first:
-
-```bash
-!python -m llmbench.cli all --backends hf,vllm,llamacpp,awq --limit-prompts 8
-```
-
-6. Full run after the smoke test passes:
-
-```bash
+!python -m llmbench.cli all --config configs/benchmark.yaml --backends hf,vllm,llamacpp,awq --limit-prompts 8 --results-dir results_smoke
 !bash scripts/run_all.sh
 ```
 
-Or open `notebooks/01_t4_quickstart.ipynb` and run the cells in order.
+Full step-by-step checklist: [COLAB_STEPS.md](COLAB_STEPS.md). Notebook: [notebooks/01_t4_quickstart.ipynb](notebooks/01_t4_quickstart.ipynb).
 
-### Option B — Kaggle T4
+### Kaggle T4
 
-```bash
+```python
 !bash scripts/bootstrap_kaggle.sh
 !bash scripts/run_all.sh
 ```
 
-Kaggle sometimes ships older CUDA tooling. If `llama-cpp-python` fails to build with CUDA, the bootstrap script falls back to a prebuilt cu124 wheel. Check `python -m llmbench.cli doctor` to confirm `llama_cpp` is importable. If it falls back to CPU, label that result separately.
+### Local Windows validation
 
-### Option C — Local Windows with an NVIDIA GPU
-
-Yes, this works, but with constraints. See `LOCAL_LAPTOP.md`.
-
-For an **RTX 3050 Laptop 4 GB**, use the reduced `Qwen2.5-0.5B` config:
+Native Windows cannot run vLLM. For an RTX 3050 Laptop 4 GB, use the reduced 0.5B config:
 
 ```powershell
 powershell -File scripts\bootstrap_windows_gpu.ps1
@@ -100,160 +163,92 @@ $env:PYTHONPATH = "$PWD\src"
 .\.venv\Scripts\python.exe -m llmbench.cli all --config configs\laptop_rtx3050.yaml --backends hf,llamacpp,awq,gptq
 ```
 
-`vLLM` is not supported natively on Windows; use WSL2 or Colab for that setup. Keep the T4/1.5B config for final portfolio numbers.
-
-A reduced local run has already been collected in `results_laptop/tradeoff_table.md`. On the RTX 3050 Laptop 4 GB, `llamacpp` (GGUF Q4_K_M) was fastest at ~93 output tok/s with MMLU 30% and WikiText PPL 23.64; plain HF was ~61 tok/s, MMLU 20%, PPL 23.66. Treat this as a local validation, not the final portfolio result: vLLM is absent, AWQ runs unfused on Windows, llama.cpp is measured as repeated single-stream requests, and GPTQ's Windows wheel has no working CUDA kernels, so its local quality row is invalid.
-
-### Final T4 result
-
-The final portfolio run is in `results/tradeoff_table.md` (Tesla T4 16 GB, Qwen2.5-1.5B-Instruct, concurrency 1/4/8/16, four backends, all benchmark rows with 0 errors).
-
-| Setup | Out tok/s @16 | MMLU % | WikiText PPL | Peak GPU MiB | Speedup vs HF |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| `vllm` | **809.97** | **57.50** | **28.89** | 12,968 | **2.13×** |
-| `hf` | 379.90 | 57.50 | 28.90 | 4,380 | 1.00× |
-| `awq` | 222.10 | 47.50 | 30.81 | **2,588** | 0.58× |
-| `llamacpp` | 5.26 | 55.00 | 29.93 | 450 | 0.01× |
-
-**Recommendation:** use `vllm` for latency/throughput-sensitive serving. It is 2.13× faster than plain Transformers at concurrency 16 with no MMLU loss and slightly lower perplexity. Use `awq` only when VRAM is the binding constraint and a 10-point MMLU drop is acceptable. `llamacpp` is a low-memory option, not a competitive shared server in this run. GPTQ was skipped in the final run because `auto_gptq` was unavailable in the Colab environment.
-
-### Option D — Local Windows / no GPU
-
-You can validate the harness with a tiny smoke test, but **do not use those numbers in the report**.
-
-```powershell
-pip install -r requirements.txt -r requirements-llamacpp.txt
-pip install -e .
-python -m llmbench.cli doctor
-powershell -File scripts\run_all.ps1
-```
+The local run is in `results_laptop/tradeoff_table.md`. It is useful validation but **not** the final portfolio result: vLLM is absent, AWQ runs unfused, llama.cpp is single-stream, and the Windows GPTQ wheel lacks working CUDA kernels, so its local quality row is invalid.
 
 ---
 
 ## Commands reference
 
 ```bash
-# 1. Check hardware and optional backends
-python -m llmbench.cli doctor
-
-# 2. Download models + eval data (skipping this is fine; loaders download on demand)
-python -m llmbench.cli prepare --backends hf,vllm,llamacpp,awq
-
-# 3. Only serving benchmark
+python -m llmbench.cli doctor                                  # GPU + backend check
+python -m llmbench.cli prepare --backends hf,vllm,llamacpp,awq # download assets
 python -m llmbench.cli benchmark --backends hf,vllm,llamacpp,awq
-
-# 4. Only quality eval
 python -m llmbench.cli quality --backends hf,vllm,llamacpp,awq
-
-# 5. Everything + auto report
-python -m llmbench.cli all --backends hf,vllm,llamacpp,awq
-
-# 6. Rebuild the report from saved raw JSON
-python -m llmbench.cli report
+python -m llmbench.cli all --backends hf,vllm,llamacpp,awq     # everything + report
+python -m llmbench.cli report                                   # rebuild report from raw JSON
 ```
 
 Useful flags:
 
 - `--limit-prompts 8` — fast smoke test.
-- `--backends hf,gptq` — include/exclude setups.
-- `--config configs/benchmark.yaml` — change concurrency, token lengths, prompts, quality gate.
+- `--backends hf,gptq` — include or exclude setups.
+- `--config configs/benchmark.yaml` — change workload, concurrency, or quality gate.
 - `--results-dir results_v2` — keep an independent run for comparison.
-
-Each backend runs in a **separate subprocess** on purpose. Mixing vLLM, AWQ, and Transformers in one Python process causes CUDA allocator/graph conflicts.
 
 ---
 
-## How to read the result
+## Repo map
 
-`results/tradeoff_table.md` contains:
-
-1. **Headline table** at the highest concurrency tested.
-2. **Per-concurrency detail** so you can see where a backend overtakes another.
-3. **Recommendation** selected by throughput subject to a configurable quality gate (`max_acceptable_quality_loss_pp`).
-4. **Why this wins** with the mechanism: batching, KV cache, or memory bandwidth.
-5. **Resume line** generated from your actual numbers.
-
-Typical interpretation on a T4:
-
-- **vLLM usually wins concurrent throughput** because continuous batching keeps the GPU busy and paged KV cache reduces fragmentation. Its benefit is small at concurrency 1 and large at 8–16.
-- **AWQ/GPTQ usually win memory** because 4-bit weights cut weight traffic and VRAM footprint. On a bandwidth-bound T4 this can also improve single-stream latency, but custom kernels may lose at large batches.
-- **llama.cpp is strong for low concurrency** and simple deployment. If it runs on CPU, treat it as a different deployment class.
-- **Plain HF is the control**, not the punchline. Its growing tail latency is what makes the other numbers meaningful.
-
-Do **not** claim "quantization is always faster." The correct claim is: *on this hardware, at this concurrency, with this kernel stack, setup X delivered Y tokens/sec at Z quality delta.*
+```text
+.
+├── configs/                 # final T4 config + reduced laptop config
+├── docs/assets/             # animated SVG pipeline and result bars
+├── notebooks/               # Colab quickstart
+├── scripts/                 # bootstrap, full run, Windows helpers
+├── src/llmbench/
+│   ├── backends/            # hf, awq, gptq, vllm, llama.cpp adapters
+│   ├── cli.py               # CLI + isolated backend subprocess runner
+│   ├── config.py            # YAML config loader
+│   ├── data.py              # deterministic prompts + MMLU/WikiText loaders
+│   ├── hardware.py          # GPU/env reporting and memory sampling
+│   ├── metrics.py           # latency and throughput aggregation
+│   ├── report.py            # tradeoff table + recommendation generator
+│   └── runner.py            # benchmark and quality orchestration
+├── results/                 # FINAL T4 report, summary, raw JSON evidence
+├── results_laptop/          # reduced RTX 3050 validation run
+├── results_smoke/           # 8-prompt smoke run
+└── results_final.zip        # downloadable copy of final results
+```
 
 ---
 
 ## Fairness rules baked into the harness
 
-- Same model family and tokenizer lineage for all setups.
+- Same model family and tokenizer lineage across setups.
 - Same deterministic prompt pool, seed, input length target, and max new tokens.
-- Greedy decoding (`temperature=0`) so quality scoring is stable.
+- Greedy decoding (`temperature=0`) for stable quality scoring.
 - Warmup requests before measurement.
-- GPU memory sampled during the measured window, not just after load.
-- Separate subprocess per backend to avoid allocator contamination.
+- GPU memory sampled during the measured window, not only after load.
+- One subprocess per backend to avoid allocator contamination.
+- Fixed quality subset; reported as regression detection, not a leaderboard claim.
 
 Known approximation: llama.cpp streaming reports content chunks, so token arrival times are chunk-based. vLLM and HF/quant backends use native token IDs. This is documented in the generated caveats.
-
----
-
-## Suggested 3–4 week plan
-
-See `PROJECT_PLAN.md` for the full checklist. Short version:
-
-- **Week 1:** environment, smoke test, baseline HF numbers, fix instrumentation.
-- **Week 2:** vLLM + llama.cpp, concurrency sweep 1/4/8/16, memory sampling.
-- **Week 3:** AWQ + optional GPTQ, perplexity + MMLU subset, repeat runs for p95 stability.
-- **Week 4:** plots, mechanism analysis, README/report polish, resume line, repo cleanup.
-
----
-
-## Final deliverable you can show
-
-- `results/tradeoff_table.md` — the tradeoff table and recommendation.
-- `results/summary.csv` — raw aggregate numbers for plotting.
-- `results/raw/*.json` — request-level aggregates, quality rows, environment versions.
-- `README.md` + `PROJECT_PLAN.md` — methodology and why the result happened.
-
-Resume template:
-
-> Benchmarked 4 inference setups under 16 concurrent users on a T4; found **vLLM** gives **2.13×** throughput over plain Transformers at **0.00 pp** MMLU change, while **AWQ** cuts peak VRAM by **80%**.
-
-Numbers come from `results/tradeoff_table.md`.
 
 ---
 
 ## Risks and mitigations
 
 | Risk | Mitigation |
-|---|---|
-| Colab/kaggle GPU not actually T4 | `doctor` prints the GPU name; save it in env JSON |
-| llama.cpp built for CPU | Label it clearly; rerun with CUDA wheel/build |
-| MMLU subset too noisy | Use 40–100 examples and report it as regression detection only |
-| p95 unstable | Set `repeats: 2` or `3` in config |
-| Kernel/version drift | Pin versions in `results/raw/env_*.json`; do not compare across stacks blindly |
-| Quantized model repo changes | Use the exact `model_id` and GGUF filename in `configs/benchmark.yaml` |
+| --- | --- |
+| Colab/Kaggle GPU is not actually T4 | `doctor` prints GPU name; saved in `results/raw/env_*.json` |
+| llama.cpp built for CPU | Label it clearly; do not compare as GPU |
+| MMLU subset too noisy | Use 40–100 examples; treat as regression detection only |
+| p95 unstable | Set `repeats: 2` or `3` in the config |
+| AWQ OOM | Lower `gpu_memory_utilization` for vLLM; backends already run separately |
+| GPTQ quality invalid on Windows | Check `raw/env_*.json` and `raw/quality_*.json` before trusting it |
 
 ---
 
-## Folder map
+## Final deliverables
 
-```text
-configs/benchmark.yaml          Experiment matrix and model IDs
-src/llmbench/
-  cli.py                        Command-line entry point
-  config.py                     Typed YAML config
-  data.py                       Fixed prompts, perplexity text, MMLU subset
-  metrics.py                    p50/p95, throughput, TPOT
-  hardware.py                   GPU/RSS sampling and environment report
-  runner.py                     Benchmark + quality orchestration
-  report.py                     Tradeoff table and recommendation
-  backends/                     HF, vLLM, llama.cpp, AWQ, GPTQ adapters
-scripts/                        Bootstrap, full run, Windows smoke test
-notebooks/                      Colab quickstart
-results/                        Generated after you run (gitignored raw files)
-PROJECT_PLAN.md                 Week-by-week execution plan
-NEXT_STEPS.md                   Your action checklist
-```
+- [`results/tradeoff_table.md`](results/tradeoff_table.md) — final table, recommendation, caveats.
+- [`results/summary.csv`](results/summary.csv) — numbers for charts.
+- [`results/summary.json`](results/summary.json) — machine-readable winner and summaries.
+- [`results/raw/*.json`](results/raw/) — benchmark, quality, and environment evidence.
+- This README — methodology, mechanisms, and why the result happened.
 
-Start with `NEXT_STEPS.md`.
+### Resume line
+
+> Benchmarked 4 inference setups under 16 concurrent users on a T4; found **vLLM** gives **2.13×** throughput over plain Transformers at **0.00 pp** MMLU change, while **AWQ** cuts peak VRAM by **80%**.
+
+Numbers come from the generated report, not from a template.
