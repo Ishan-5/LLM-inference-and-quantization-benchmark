@@ -1,0 +1,42 @@
+{
+  "backend": "gptq",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct-GPTQ-Int4",
+  "dtype": "float16",
+  "perplexity": 151935.97667582906,
+  "perplexity_nll": 11.931214505016143,
+  "perplexity_tokens": 1084,
+  "perplexity_note": "",
+  "mmlu_accuracy_pct": 15.0,
+  "mmlu_correct": 3,
+  "mmlu_total": 20,
+  "mmlu_note": "",
+  "mmlu_predictions": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "mmlu_subjects": [
+    "abstract_algebra",
+    "anatomy",
+    "college_computer_science",
+    "high_school_mathematics",
+    "miscellaneous"
+  ]
+}
