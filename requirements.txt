@@ -1,0 +1,12 @@
+torch>=2.1
+transformers>=4.44
+accelerate>=0.34
+huggingface_hub>=0.24
+datasets>=2.19
+numpy>=1.26
+pandas>=2.2
+pyyaml>=6.0
+tqdm>=4.66
+psutil>=5.9
+nvidia-ml-py>=12.535
+tabulate>=0.9
