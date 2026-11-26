@@ -251,8 +251,6 @@ Known approximation: llama.cpp streaming reports content chunks, so token arriva
 - [`results/raw/*.json`](results/raw/) — benchmark, quality, and environment evidence.
 - This README — methodology, mechanisms, and why the result happened.
 
-### Resume line
 
-> Benchmarked 4 inference setups under 16 concurrent users on a T4; found **vLLM** gives **2.13×** throughput over plain Transformers at **0.00 pp** MMLU change, while **AWQ** cuts peak VRAM by **80%**.
 
 Numbers come from the generated report, not from a template.
