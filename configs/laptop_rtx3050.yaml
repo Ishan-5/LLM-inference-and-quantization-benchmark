@@ -1,0 +1,66 @@
+# Reduced config for an RTX 3050 Laptop 4 GB GPU.
+# Uses Qwen2.5-0.5B-Instruct across ALL backends so comparisons stay fair.
+# Keep configs/benchmark.yaml (Qwen2.5-1.5B) for the final T4 portfolio run.
+results_dir: results_laptop
+
+benchmark:
+  prompts_per_level: 16
+  concurrency_levels: [1, 2, 4]
+  repeats: 1
+  warmup_requests: 2
+  input_tokens: 96
+  max_new_tokens: 96
+  temperature: 0.0
+  top_p: 1.0
+  seed: 42
+  timeout_s: 600
+  results_dir: results_laptop
+
+quality:
+  perplexity_chars: 3000
+  perplexity_window: 768
+  mmlu_subjects:
+    - abstract_algebra
+    - anatomy
+    - college_computer_science
+    - high_school_mathematics
+    - miscellaneous
+  mmlu_examples: 20
+  seed: 42
+  max_acceptable_quality_loss_pp: 3.0
+
+backends:
+  hf:
+    model_id: Qwen/Qwen2.5-0.5B-Instruct
+    dtype: float16
+    max_model_len: 1024
+    device_map: auto
+
+  vllm:
+    model_id: Qwen/Qwen2.5-0.5B-Instruct
+    dtype: float16
+    max_model_len: 1024
+    gpu_memory_utilization: 0.70
+    tensor_parallel_size: 1
+
+  llamacpp:
+    model_id: bartowski/Qwen2.5-0.5B-Instruct-GGUF
+    gguf_file: Qwen2.5-0.5B-Instruct-Q4_K_M.gguf
+    n_ctx: 1024
+    n_gpu_layers: -1
+    n_batch: 256
+    chat_format: null
+
+  awq:
+    model_id: Qwen/Qwen2.5-0.5B-Instruct-AWQ
+    dtype: float16
+    max_model_len: 1024
+    device_map: auto
+    fuse_layers: true
+
+  gptq:
+    model_id: Qwen/Qwen2.5-0.5B-Instruct-GPTQ-Int4
+    dtype: float16
+    max_model_len: 1024
+    device_map: auto
+    fuse_layers: true
