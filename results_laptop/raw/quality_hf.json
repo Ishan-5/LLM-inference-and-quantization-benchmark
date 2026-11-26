@@ -1,0 +1,42 @@
+{
+  "backend": "hf",
+  "model_id": "Qwen/Qwen2.5-0.5B-Instruct",
+  "dtype": "float16",
+  "perplexity": 23.6616109671741,
+  "perplexity_nll": 3.1638539444476477,
+  "perplexity_tokens": 1084,
+  "perplexity_note": "",
+  "mmlu_accuracy_pct": 20.0,
+  "mmlu_correct": 4,
+  "mmlu_total": 20,
+  "mmlu_note": "",
+  "mmlu_predictions": [
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    3,
+    0,
+    0,
+    0,
+    0,
+    1,
+    0,
+    0,
+    0,
+    2,
+    0,
+    0,
+    0
+  ],
+  "mmlu_subjects": [
+    "abstract_algebra",
+    "anatomy",
+    "college_computer_science",
+    "high_school_mathematics",
+    "miscellaneous"
+  ]
+}
