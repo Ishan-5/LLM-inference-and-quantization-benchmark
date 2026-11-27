@@ -5,12 +5,12 @@
 
 ## Headline table (highest concurrency tested)
 
-| Setup | Concurrency | Out tok/s | Total tok/s | E2E p95 ms | TTFT p95 ms | Peak GPU MiB | MMLU % | MMLU 95% CI | WikiText PPL | ΔMMLU | ΔPPL | Speedup vs hf |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| awq | 4 | 34.57 | 75.82 | 12,270.71 | 351.26 | 944.50 | 20.00 | 8.1–41.6 | 28.46 | +0.00 | +4.798 | 0.57 |
-| gptq | 4 | 25.57 | 55.77 | 15,443.77 | 218.85 | 1,162.50 | 15.00 | 5.2–36.0 | 151,935.98 | -5.00 | +151,912.315 | 0.42 |
-| hf | 4 | 61.17 | 133.41 | 6,614.82 | 128.42 | 1,450.50 | 20.00 | 8.1–41.6 | 23.66 | +0.00 | +0.000 | 1.00 |
-| llamacpp | 4 | 93.13 | 182.75 | 4,189.07 | 3,188.64 | 766.50 | 30.00 | 14.5–51.9 | 23.64 | +10.00 | -0.020 | 1.52 |
+| Setup | Concurrency | Repeats | Out tok/s ±SD | Total tok/s | E2E p95 ±SD | TTFT p95 ms | Peak GPU MiB | MMLU % | MMLU 95% CI | WikiText PPL | ΔMMLU | ΔPPL | Speedup vs hf |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| awq | 4 | 1 | 34.6 | 75.82 | 12270.7 | 351.26 | 944.50 | 20.00 | 8.1–41.6 | 28.46 | +0.00 | +4.798 | 0.57 |
+| gptq | 4 | 1 | 25.6 | 55.77 | 15443.8 | 218.85 | 1,162.50 | 15.00 | 5.2–36.0 | 151,935.98 | -5.00 | +151,912.315 | 0.42 |
+| hf | 4 | 1 | 61.2 | 133.41 | 6614.8 | 128.42 | 1,450.50 | 20.00 | 8.1–41.6 | 23.66 | +0.00 | +0.000 | 1.00 |
+| llamacpp | 4 | 1 | 93.1 | 182.75 | 4189.1 | 3,188.64 | 766.50 | 30.00 | 14.5–51.9 | 23.64 | +10.00 | -0.020 | 1.52 |
 
 ## Per-concurrency detail
 
@@ -48,10 +48,10 @@ Pick **`llamacpp`** for the latency/throughput-sensitive path: it delivered **93
 
 - A T4 is memory-bandwidth constrained; rankings can change on A100/H100 class GPUs.
 - GGUF and 4-bit kernels are build-sensitive. Record the exact package versions from `results/raw/env_*.json`.
-- MMLU used a fixed subset of n=20 per backend. Wilson 95% intervals are in the headline table and overlap heavily; point-estimate deltas are not statistically distinguishable at this size. Future runs should use 200+ examples before making quality claims.
-- The configured 3-pp quality gate is smaller than one question at n=40. It is a screening heuristic, not a significance test.
-- There was one measured repeat per concurrency level, so p95 has no error bars. Future runs should set `repeats: 2` or `3`; the published config deliberately stays at 1 so it reproduces the reported numbers.
-- AWQ ran through the HF engine while vLLM ran FP16 through vLLM. Cross-engine comparisons confound engine and quantization; only HF vs AWQ isolates quantization. A vLLM+AWQ run is future work.
+- MMLU used a fixed subset of n=20 per backend. Wilson 95% intervals are in the headline table; point-estimate deltas are not statistically distinguishable at this size.
+- The configured 3-pp quality gate is smaller than one question at n=20. It is a screening heuristic, not a significance test.
+- There was one measured repeat per concurrency level, so p95 has no error bars. The published config stays at `repeats: 1` for reproducibility; `configs/benchmark_v2.yaml` is prepared with 3 repeats.
+- AWQ ran through the HF engine while vLLM ran FP16 through vLLM. Cross-engine comparisons confound engine and quantization; only HF vs AWQ isolates quantization. `configs/benchmark_v2.yaml` is prepared with a vLLM+AWQ run.
 - vLLM's peak GPU memory includes preallocated KV cache. It is not a model-weight-only footprint and should not be used as a direct memory-efficiency comparison.
 - Streaming chunk counts are used as token arrival times for llama.cpp; vLLM/HF use native token IDs.
 - On native Windows, vLLM is unavailable and GPTQ wheels may lack CUDA kernels. Check `raw/env_*.json` and `raw/quality_*.json` before treating GPTQ quality numbers as valid.
