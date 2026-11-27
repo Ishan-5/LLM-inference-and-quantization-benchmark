@@ -1,0 +1,15 @@
+{
+  "python": "3.13.16",
+  "platform": "linux",
+  "gpu_used_mib_start": 450.1875,
+  "torch": "2.14.0+cu130",
+  "cuda_available": true,
+  "gpu_name": "Tesla T4",
+  "gpu_vram_mib": 14912.7,
+  "cuda_capability": "7.5",
+  "transformers": "5.22.1",
+  "vllm": "0.34.0",
+  "llama_cpp": null,
+  "autoawq": "0.2.9",
+  "auto_gptq": null
+}
