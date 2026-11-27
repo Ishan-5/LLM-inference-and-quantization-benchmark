@@ -11,7 +11,7 @@
 
 One model. Four serving strategies. One fair workload. Real latency, throughput, VRAM, MMLU, and perplexity numbers on a Tesla T4.
 
-[Live dashboard](https://ishan-5.github.io/LLM-inference-and-quantization-benchmark/) · [Dashboard source](docs/index.html) · [Final report](results/tradeoff_table.md) · [Summary CSV](results/summary.csv) · [Raw evidence](results/raw/) · [Colab steps](COLAB_STEPS.md) · [Local run](LOCAL_LAPTOP.md)
+[Live dashboard](https://ishan-5.github.io/LLM-inference-and-quantization-benchmark/) · [Dashboard source](docs/index.html) · [Primary v2 report](results_v2/tradeoff_table.md) · [v1 report](results/tradeoff_table.md) · [Raw v2 evidence](results_v2/raw/) · [Colab steps](COLAB_V2_STEPS.md) · [Local run](LOCAL_LAPTOP.md)
 
 </div>
 
@@ -27,33 +27,33 @@ One model. Four serving strategies. One fair workload. Real latency, throughput,
 
 ---
 
-## Final result — Tesla T4 16 GB
+## Primary result — Tesla T4 16 GB (v2)
 
-Qwen2.5-1.5B-Instruct · concurrency 1 / 4 / 8 / 16 · greedy decoding · 128 input tokens · 128 max new tokens. MMLU is a **40-question** subset; Wilson 95% intervals are shown because the point estimates are not statistically distinguishable.
+Qwen2.5-1.5B-Instruct · concurrency 1 / 4 / 8 / 16 · greedy decoding · 128 input tokens · 128 max new tokens · **3 repeats per level** · MMLU **n=200 per backend**. Wilson 95% intervals are shown; sample SD is in the generated report and dashboard whiskers.
 
-| Setup | Out tok/s @16 | Total tok/s @16 | E2E p95 ms | TTFT p95 ms | Peak GPU MiB | MMLU % (95% CI) | WikiText PPL | Speedup vs HF |
+| Setup | Out tok/s @16 ±SD | Total tok/s @16 | E2E p95 ms ±SD | TTFT p95 ms | Peak GPU MiB | MMLU % (95% CI) | WikiText PPL | Speedup vs HF |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| **vllm** | **809.97** | **1,656.85** | **2,523.64** | 115.07 | 12,968 | **57.50** (42.2–71.5) | **28.89** | **2.13×** |
-| hf | 379.90 | 777.11 | 5,733.60 | **76.33** | 4,380 | 57.50 (42.2–71.5) | 28.90 | 1.00× |
-| awq | 222.10 | 453.52 | 9,264.46 | 130.31 | **2,588** | 47.50 (32.9–62.5) | 30.81 | 0.58× |
-| llamacpp | 5.26 | 10.00 | 365,643.37 | 345,755.96 | 450 | 55.00 (39.8–69.3) | 29.93 | 0.01× |
+| **vllm_awq** | **1,384.83 ± 9.85** | **2,827.82** | **1,480.38 ± 11.14** | 109.36 | 12,946 | 51.00 (44.1–57.8) | 30.79 | **3.86×** |
+| vllm | 813.53 ± 2.68 | 1,664.13 | 2,525.13 ± 13.49 | 132.65 | 12,968 | 49.50 (42.6–56.4) | **28.89** | 2.27× |
+| hf | 358.73 ± 9.55 | 733.80 | 6,019.19 ± 273.82 | **73.11** | 4,380 | 49.50 (42.6–56.4) | 28.90 | 1.00× |
+| awq | 210.39 ± 2.20 | 429.61 | 9,965.73 ± 101.66 | 124.05 | **2,588** | 50.50 (43.6–57.4) | 30.81 | 0.59× |
 
-**Winner: `vllm`.** It delivers **2.13×** the throughput of plain Transformers at concurrency 16. It uses the same FP16 weights as HF, so identical MMLU is expected — not evidence of a quality advantage. Its 12,968 MiB peak includes preallocated KV cache, not just model weights.
+**Winner: `vllm_awq`.** It delivers **3.86×** the throughput of plain Transformers and **1.70×** the throughput of `vllm` FP16 at concurrency 16. The second comparison is same-engine, so it isolates the AWQ weight/kernel effect from serving-engine differences. MMLU intervals overlap and AWQ has slightly higher perplexity; do not claim a quality win. vLLM's ~12.9 GB peak includes preallocated KV cache, so AWQ does **not** reduce vLLM peak VRAM here.
 
 ```mermaid
 xychart-beta
-    title "Output tokens per second at 16 users"
-    x-axis ["vllm", "hf", "awq", "llamacpp"]
-    y-axis "tokens / second" 0 --> 900
-    bar [809.97, 379.90, 222.10, 5.26]
+    title "Output tokens per second at 16 users (v2)"
+    x-axis ["vllm_awq", "vllm", "hf", "awq"]
+    y-axis "tokens / second" 0 --> 1500
+    bar [1384.83, 813.53, 358.73, 210.39]
 ```
 
 ```mermaid
 xychart-beta
-    title "Peak GPU memory (MiB)"
-    x-axis ["vllm", "hf", "awq", "llamacpp"]
+    title "Peak GPU memory (MiB, v2)"
+    x-axis ["vllm_awq", "vllm", "hf", "awq"]
     y-axis "MiB" 0 --> 14000
-    bar [12968, 4380, 2588, 450]
+    bar [12946, 12968, 4380, 2588]
 ```
 
 ---
@@ -65,12 +65,13 @@ This is a **systems/infra** benchmark, not a model-quality leaderboard. The base
 | Setup | Implementation | What it demonstrates |
 | --- | --- | --- |
 | `hf` | Plain `transformers` + PyTorch FP16 | Honest baseline; static batching, no KV paging |
+| `awq` | AutoAWQ INT4 in the HF engine | Activation-aware weight quantization; VRAM and bandwidth tradeoff |
 | `vllm` | vLLM async engine FP16 | PagedAttention + continuous batching under concurrency |
-| `llamacpp` | `llama-cpp-python` with Q4_K_M GGUF | Lightweight runtime, quantized kernels, small memory footprint |
-| `awq` | AutoAWQ INT4 | Activation-aware weight quantization; VRAM and bandwidth tradeoff |
-| `gptq` | AutoGPTQ INT4 (optional) | Alternative 4-bit family; skipped in the final run because `auto_gptq` was unavailable |
+| `vllm_awq` | vLLM async engine with AWQ weights | Same-engine quantization comparison; kernels + continuous batching |
+| `llamacpp` | `llama-cpp-python` with Q4_K_M GGUF | In v1 only: lightweight runtime, measured sequential concurrent path |
+| `gptq` | AutoGPTQ INT4 (optional) | Alternative 4-bit family; excluded because Colab had no `auto_gptq` and Windows kernels were invalid |
 
-All four final backends produced **0 benchmark errors**, non-zero output tokens, and valid GPU-memory samples. Environment versions are saved in `results/raw/env_*.json`.
+All four v2 backends produced **0 benchmark errors**, non-zero output tokens, and valid GPU-memory samples. Environment versions are saved in `results_v2/raw/env_*.json`.
 
 ---
 
@@ -78,21 +79,21 @@ All four final backends produced **0 benchmark errors**, non-zero output tokens,
 
 ```mermaid
 flowchart LR
-    C["configs/benchmark.yaml"] --> P["Deterministic prompt pool<br/>seed 42 · 128 input tokens"]
+    C["configs/benchmark_v2.yaml"] --> P["Deterministic prompt pool<br/>seed 42 · 128 input tokens"]
     P --> S["Separate subprocess per backend<br/>no CUDA allocator contamination"]
     S --> B1["hf"]
-    S --> B2["vllm"]
-    S --> B3["llamacpp"]
-    S --> B4["awq"]
+    S --> B2["awq"]
+    S --> B3["vllm"]
+    S --> B4["vllm_awq"]
     B1 --> M["Metrics<br/>tok/s · TTFT · E2E · TPOT · VRAM"]
     B2 --> M
     B3 --> M
     B4 --> M
-    B1 --> Q["Quality gate<br/>MMLU subset · WikiText PPL"]
+    B1 --> Q["Quality gate<br/>MMLU n=200 · WikiText PPL"]
     B2 --> Q
     B3 --> Q
     B4 --> Q
-    M --> R["results/tradeoff_table.md"]
+    M --> R["results_v2/tradeoff_table.md"]
     Q --> R
 ```
 
@@ -113,45 +114,50 @@ Each backend runs in its own process. Mixing vLLM, AWQ, and Transformers in one 
 | WikiText perplexity | Generic language-model quality regression |
 | MMLU subset accuracy | Task-level quality regression, reported in percentage points |
 
-Quality columns are reported against the `hf` baseline, but at n=40 a 2-pp gate is smaller than one question. Treat MMLU as a regression screen with intervals, not a significance test. `configs/benchmark.yaml` reproduces the published table (`mmlu_examples: 40`, `repeats: 1`); future runs should use 200+ MMLU examples and 2–3 repeats before making quality or variance claims.
+Quality columns are reported against the `hf` baseline. The v2 run uses **n=200 MMLU and 3 repeats**; all Wilson 95% intervals still overlap, so point-estimate deltas are a regression screen, not significance findings. `configs/benchmark_v2.yaml` reproduces the primary table; `configs/benchmark.yaml` remains the untouched v1 reproduction (`mmlu_examples: 40`, `repeats: 1`).
 
 ---
 
 ## What I found
 
-**1. Continuous batching is the headline win — and it is expected.** vLLM reaches 810 out tok/s at 16 users versus 380 for HF. Its advantage grows with concurrency because new requests enter as soon as a sequence finishes; HF waits for the slowest member of a static batch. This is a well-known result; the value here is that the harness measures it reproducibly.
+**1. Same-engine AWQ is the headline speed win.** `vllm_awq` reaches 1,384.8 out tok/s at 16 users versus 813.5 for `vllm` FP16 — **1.70× faster with engine held constant**. This isolates the AWQ weight/kernel effect from serving-engine differences. It is still a systems result on one T4, not a new attention algorithm.
 
-**2. Paged KV cache keeps the tail small.** vLLM E2E p95 is 2,524 ms versus 5,734 ms for HF. PagedAttention reduces fragmentation and keeps more concurrent sequences resident.
+**2. Continuous batching remains a large separate win.** `vllm` FP16 is 2.27× HF at 16 users, and E2E p95 is 2,525 ms versus 6,019 ms. PagedAttention and continuous batching keep the tail smaller; this is a well-known result measured reproducibly here.
 
-**3. AWQ's clean win is memory, not speed.** In the same HF engine, AWQ uses 2,588 MiB versus HF's 4,380 MiB — **41% less VRAM** — while throughput is lower (222 vs 380 tok/s). The MMLU point estimate is lower (47.5% vs 57.5%), but the 95% intervals overlap heavily, so that difference is not a finding at n=40.
+**3. AWQ's clean VRAM win is in the HF engine.** HF-AWQ uses 2,588 MiB versus HF-FP16's 4,380 MiB — **41% less VRAM** — while HF-AWQ throughput is lower (210 vs 359 tok/s). vLLM's ~12.9 GB peak includes preallocated KV cache, so vLLM FP16 vs vLLM AWQ is a speed comparison, not a VRAM-saving comparison.
 
-**4. llama.cpp is a deployment tradeoff, not a throughput winner here.** It uses just 450 MiB and scores 55.0% MMLU (95% CI 39.8–69.3), but the measured path processes concurrent requests sequentially, so its rows are repeated single-stream measurements rather than shared-server batching.
+**4. Quality is close, with a small perplexity cost.** MMLU point estimates span 49.5–51.0% and all Wilson 95% intervals overlap. AWQ's WikiText PPL is ~30.8 versus ~28.9 for FP16. That is an honest tradeoff to report, not evidence of a statistically significant MMLU change.
 
-**5. HF is the control, not the punchline.** Its rising tail latency is what makes the other numbers meaningful.
+**5. HF is the control, not the punchline.** Its rising tail latency is what makes the other numbers meaningful. The v1 llama.cpp row remains useful as a low-memory deployment tradeoff, but its measured concurrent path was sequential and it is not part of v2.
 
 ## What this does not show
 
-- **No vLLM+AWQ comparison.** AWQ ran through the HF engine; vLLM ran FP16 through vLLM. Comparing them confounds engine with quantization. Only HF vs AWQ isolates quantization.
-- **No statistical quality claim.** MMLU used n=40. All 95% intervals overlap; a 10-pp gap is about four questions.
-- **No p95 error bars.** There was one measured repeat per concurrency level. The published config stays at `repeats: 1` for reproducibility; future runs should use 2–3 repeats and report variance.
-- **No novelty claim.** "vLLM beats plain Transformers under concurrency" is known. The contribution is the harness, the fixed workload, and the explicit uncertainty reporting.
+- **No statistically significant MMLU difference.** v2 used n=200 and all intervals overlap. Do not claim a quality win or loss from point-estimate deltas.
+- **No vLLM VRAM saving from AWQ.** Both vLLM rows peak near 12.9 GB because of KV-cache preallocation.
+- **No 4-backend v2 result including llama.cpp.** v2 intentionally covers `hf`, `awq`, `vllm`, and `vllm_awq`; see the v1 report for llama.cpp.
+- **No novelty claim.** "vLLM beats plain Transformers under concurrency" is known. The contribution is the harness, the fixed workload, same-engine comparisons, and explicit uncertainty reporting.
 
 ---
 
 ## Reproduce it
 
-### Colab T4 — recommended
+### Colab T4 — recommended (primary v2 result)
 
 ```python
 !bash scripts/bootstrap_colab.sh
 !python -m llmbench.cli doctor
-!python -m llmbench.cli all --config configs/benchmark.yaml --backends hf,vllm,llamacpp,awq --limit-prompts 8 --results-dir results_smoke
-!bash scripts/run_all.sh
+!bash scripts/run_all_v2.sh
 ```
 
-Full step-by-step checklist: [COLAB_STEPS.md](COLAB_STEPS.md). Notebook: [notebooks/01_t4_quickstart.ipynb](notebooks/01_t4_quickstart.ipynb).
+If the Colab GPU is unavailable for llama.cpp, use the validated four-backend command:
 
-### Kaggle T4
+```python
+!BACKENDS=hf,vllm,awq,vllm_awq bash scripts/run_all_v2.sh
+```
+
+Full step-by-step checklist: [COLAB_V2_STEPS.md](COLAB_V2_STEPS.md). Notebook: [notebooks/01_t4_quickstart.ipynb](notebooks/01_t4_quickstart.ipynb).
+
+### Kaggle T4 — v1 reproduction
 
 ```python
 !bash scripts/bootstrap_kaggle.sh
@@ -197,15 +203,15 @@ Useful flags:
 
 ```text
 .
-├── configs/                 # final T4 config + reduced laptop config
+├── configs/                 # v2 primary config + v1 and reduced laptop configs
 ├── docs/                    # GitHub Pages dashboard + animated SVGs
-│   ├── index.html           # interactive results dashboard
-│   ├── assets/              # animated SVG pipeline and result bars
-│   └── data/                # dashboard copy of summary.json
+│   ├── index.html           # interactive v2 results dashboard
+│   ├── assets/              # animated SVG pipeline and v2 result bars
+│   └── data/                # dashboard copy of results_v2/summary.json
 ├── notebooks/               # Colab quickstart
 ├── scripts/                 # bootstrap, full run, Windows helpers
 ├── src/llmbench/
-│   ├── backends/            # hf, awq, gptq, vllm, llama.cpp adapters
+│   ├── backends/            # hf, awq, gptq, vllm, vllm_awq, llama.cpp adapters
 │   ├── cli.py               # CLI + isolated backend subprocess runner
 │   ├── config.py            # YAML config loader
 │   ├── data.py              # deterministic prompts + MMLU/WikiText loaders
@@ -213,10 +219,12 @@ Useful flags:
 │   ├── metrics.py           # latency and throughput aggregation
 │   ├── report.py            # tradeoff table + recommendation generator
 │   └── runner.py            # benchmark and quality orchestration
-├── results/                 # FINAL T4 report, summary, raw JSON evidence
+├── results_v2/              # PRIMARY v2 T4 report, summary, raw JSON evidence
+├── results/                 # original v1 T4 report, including llama.cpp
 ├── results_laptop/          # reduced RTX 3050 validation run
 ├── results_smoke/           # 8-prompt smoke run
-└── results_final.zip        # downloadable copy of final results
+├── results_v2.zip           # downloadable copy of v2 results
+└── results_final.zip        # downloadable copy of v1 results
 ```
 
 ---
@@ -239,10 +247,10 @@ Known approximation: llama.cpp streaming reports content chunks, so token arriva
 
 | Risk | Mitigation |
 | --- | --- |
-| Colab/Kaggle GPU is not actually T4 | `doctor` prints GPU name; saved in `results/raw/env_*.json` |
+| Colab/Kaggle GPU is not actually T4 | `doctor` prints GPU name; saved in `results_v2/raw/env_*.json` and `results/raw/env_*.json` |
 | llama.cpp built for CPU | Label it clearly; do not compare as GPU |
-| MMLU subset too noisy | Published run used n=40; use 200+ in future runs and report Wilson intervals |
-| p95 unstable | Published run used 1 repeat; set `repeats: 2` or `3` for future runs |
+| MMLU subset too noisy | Primary v2 used n=200 and Wilson intervals; intervals still overlap |
+| p95 unstable | Primary v2 used 3 repeats; chart whiskers show ±1 SD |
 | AWQ OOM | Lower `gpu_memory_utilization` for vLLM; backends already run separately |
 | GPTQ quality invalid on Windows | Check `raw/env_*.json` and `raw/quality_*.json` before trusting it |
 
@@ -250,20 +258,21 @@ Known approximation: llama.cpp streaming reports content chunks, so token arriva
 
 ## Final deliverables
 
-- [Live dashboard](https://ishan-5.github.io/LLM-inference-and-quantization-benchmark/) — interactive charts and headline table ([source](docs/index.html)).
-- [`results/tradeoff_table.md`](results/tradeoff_table.md) — final table, recommendation, caveats.
-- [`results/summary.csv`](results/summary.csv) — numbers for charts.
-- [`results/summary.json`](results/summary.json) — machine-readable winner and summaries.
-- [`results/raw/*.json`](results/raw/) — benchmark, quality, and environment evidence.
+- [Live dashboard](https://ishan-5.github.io/LLM-inference-and-quantization-benchmark/) — interactive v2 charts and headline table ([source](docs/index.html)).
+- [`results_v2/tradeoff_table.md`](results_v2/tradeoff_table.md) — primary v2 table, recommendation, caveats.
+- [`results_v2/summary.csv`](results_v2/summary.csv) — v2 numbers for charts.
+- [`results_v2/summary.json`](results_v2/summary.json) — v2 machine-readable winner and summaries.
+- [`results_v2/raw/*.json`](results_v2/raw/) — v2 benchmark, quality, and environment evidence.
+- [`results/tradeoff_table.md`](results/tradeoff_table.md) — original v1 run, including llama.cpp.
 - [`CLAIMS.md`](CLAIMS.md) — claim → evidence → caveat ledger.
 - [`tests/`](tests/) — report/config regression checks (`python -m unittest discover -s tests -v`).
 - This README — methodology, mechanisms, and why the result happened.
 
-## Prepared v2 run — not yet executed
+## Two published runs
 
-[`COLAB_V2_STEPS.md`](COLAB_V2_STEPS.md) and [`configs/benchmark_v2.yaml`](configs/benchmark_v2.yaml) close the remaining gaps: **n=200 MMLU**, **3 repeats**, and a **same-engine vLLM FP16 vs AWQ** comparison. It writes to `results_v2/` and will not overwrite the published table. Do not quote v2 numbers until that run exists.
+The **v2 run** is the primary portfolio result: n=200 MMLU, 3 repeats, and same-engine vLLM FP16 vs AWQ. The **v1 run** remains as the reproducible `configs/benchmark.yaml` baseline with llama.cpp and the original one-repeat, n=40 workload. Both were executed on Tesla T4 with Qwen2.5-1.5B-Instruct; no local Windows numbers are used as final results.
 
-Numbers come from the generated report, not from a template.
+Numbers come from generated reports, not from a template.
 
 
 <p align="center">
