@@ -14,10 +14,13 @@ def build_backend(name: str, spec: "BackendSpec", cfg: "AppConfig") -> BaseBacke
         from .hf_backend import HuggingFaceBackend
 
         return HuggingFaceBackend(spec, cfg)
-    if name == "vllm":
+    if name in {"vllm", "vllm_awq"}:
         from .vllm_backend import VLLMBackend
 
-        return VLLMBackend(spec, cfg)
+        backend = VLLMBackend(spec, cfg)
+        if name == "vllm_awq":
+            backend.name = "vllm_awq"
+        return backend
     if name == "llamacpp":
         from .llamacpp_backend import LlamaCppBackend
 
@@ -31,5 +34,5 @@ def build_backend(name: str, spec: "BackendSpec", cfg: "AppConfig") -> BaseBacke
 
         return GptqBackend(spec, cfg)
     raise ValueError(
-        f"Unknown backend '{name}'. Choose from: hf, vllm, llamacpp, awq, gptq"
+        f"Unknown backend '{name}'. Choose from: hf, vllm, vllm_awq, llamacpp, awq, gptq"
     )

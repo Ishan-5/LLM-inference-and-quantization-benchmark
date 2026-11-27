@@ -37,15 +37,19 @@ class VLLMBackend(BaseBackend):
         self.tokenizer = AutoTokenizer.from_pretrained(
             self.spec.model_id, trust_remote_code=self.spec.trust_remote_code
         )
-        args = AsyncEngineArgs(
-            model=self.spec.model_id,
-            dtype=self.spec.dtype,
-            max_model_len=self.spec.max_model_len,
-            tensor_parallel_size=self.spec.tensor_parallel_size,
-            gpu_memory_utilization=self.spec.gpu_memory_utilization,
-            trust_remote_code=self.spec.trust_remote_code,
-            disable_log_stats=True,
-        )
+        engine_kwargs: dict[str, Any] = {
+            "model": self.spec.model_id,
+            "dtype": self.spec.dtype,
+            "max_model_len": self.spec.max_model_len,
+            "tensor_parallel_size": self.spec.tensor_parallel_size,
+            "gpu_memory_utilization": self.spec.gpu_memory_utilization,
+            "trust_remote_code": self.spec.trust_remote_code,
+            "disable_log_stats": True,
+        }
+        quantization = self.spec.extra.get("quantization")
+        if quantization:
+            engine_kwargs["quantization"] = quantization
+        args = AsyncEngineArgs(**engine_kwargs)
         # vLLM 0.34 starts its output handler only when the engine is created
         # inside a running event loop. Keep one loop for all requests.
         self.loop = asyncio.new_event_loop()
