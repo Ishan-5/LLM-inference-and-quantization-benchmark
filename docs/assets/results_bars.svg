@@ -1,8 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="430" viewBox="0 0 1000 430" role="img" aria-label="Animated output tokens per second chart">
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="430" viewBox="0 0 1000 430" role="img" aria-label="Animated v2 output tokens per second chart">
   <defs>
     <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
       <stop offset="0%" stop-color="#0d1117"/>
       <stop offset="100%" stop-color="#161b22"/>
+    </linearGradient>
+    <linearGradient id="vllm_awq" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#a3407b"/>
+      <stop offset="100%" stop-color="#f778ba"/>
     </linearGradient>
     <linearGradient id="vllm" x1="0" y1="0" x2="1" y2="0">
       <stop offset="0%" stop-color="#2f81f7"/>
@@ -16,10 +20,6 @@
       <stop offset="0%" stop-color="#238636"/>
       <stop offset="100%" stop-color="#3fb950"/>
     </linearGradient>
-    <linearGradient id="llama" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0%" stop-color="#9e6a03"/>
-      <stop offset="100%" stop-color="#d29922"/>
-    </linearGradient>
   </defs>
 
   <style>
@@ -31,8 +31,8 @@
   </style>
 
   <rect width="1000" height="430" rx="18" fill="url(#bg)"/>
-  <text class="title" x="32" y="46">Output tokens / second @ 16 concurrent users</text>
-  <text class="sub" x="32" y="72">Tesla T4 · Qwen2.5-1.5B-Instruct · greedy decoding</text>
+  <text class="title" x="32" y="46">v2 — output tokens / second @ 16 concurrent users</text>
+  <text class="sub" x="32" y="72">Tesla T4 · Qwen2.5-1.5B-Instruct · n=200 MMLU · 3 repeats</text>
 
   <line class="grid" x1="190" y1="100" x2="190" y2="380"/>
   <line class="grid" x1="385" y1="100" x2="385" y2="380"/>
@@ -41,36 +41,36 @@
   <line class="grid" x1="970" y1="100" x2="970" y2="380"/>
 
   <g>
-    <text class="name" x="176" y="128" text-anchor="end">vllm</text>
-    <rect x="190" y="108" height="34" rx="8" fill="url(#vllm)">
-      <animate attributeName="width" from="0" to="780" dur="1.5s" begin="0.1s" fill="freeze"/>
+    <text class="name" x="176" y="128" text-anchor="end">vllm_awq</text>
+    <rect x="190" y="108" height="34" rx="8" fill="url(#vllm_awq)">
+      <animate attributeName="width" from="0" to="721" dur="1.5s" begin="0.1s" fill="freeze"/>
     </rect>
-    <text class="value" x="980" y="132" text-anchor="end">809.97</text>
+    <text class="value" x="921" y="132">1384.83</text>
   </g>
 
   <g>
-    <text class="name" x="176" y="190" text-anchor="end">hf</text>
-    <rect x="190" y="170" height="34" rx="8" fill="url(#hf)">
-      <animate attributeName="width" from="0" to="366" dur="1.5s" begin="0.25s" fill="freeze"/>
+    <text class="name" x="176" y="190" text-anchor="end">vllm</text>
+    <rect x="190" y="170" height="34" rx="8" fill="url(#vllm)">
+      <animate attributeName="width" from="0" to="423" dur="1.5s" begin="0.25s" fill="freeze"/>
     </rect>
-    <text class="value" x="566" y="194">379.90</text>
+    <text class="value" x="621" y="194">813.53</text>
   </g>
 
   <g>
-    <text class="name" x="176" y="252" text-anchor="end">awq</text>
-    <rect x="190" y="232" height="34" rx="8" fill="url(#awq)">
-      <animate attributeName="width" from="0" to="214" dur="1.5s" begin="0.4s" fill="freeze"/>
+    <text class="name" x="176" y="252" text-anchor="end">hf</text>
+    <rect x="190" y="232" height="34" rx="8" fill="url(#hf)">
+      <animate attributeName="width" from="0" to="187" dur="1.5s" begin="0.4s" fill="freeze"/>
     </rect>
-    <text class="value" x="414" y="256">222.10</text>
+    <text class="value" x="385" y="256">358.73</text>
   </g>
 
   <g>
-    <text class="name" x="176" y="314" text-anchor="end">llamacpp</text>
-    <rect x="190" y="294" height="34" rx="8" fill="url(#llama)">
-      <animate attributeName="width" from="0" to="8" dur="1.5s" begin="0.55s" fill="freeze"/>
+    <text class="name" x="176" y="314" text-anchor="end">awq</text>
+    <rect x="190" y="294" height="34" rx="8" fill="url(#awq)">
+      <animate attributeName="width" from="0" to="109" dur="1.5s" begin="0.55s" fill="freeze"/>
     </rect>
-    <text class="value" x="208" y="318">5.26</text>
+    <text class="value" x="307" y="318">210.39</text>
   </g>
 
-  <text class="sub" x="500" y="406" text-anchor="middle">Bars animate on load and hold the final measured values. Reload the image to replay.</text>
+  <text class="sub" x="500" y="406" text-anchor="middle">Bars animate on load and hold the v2 measured values. Reload the image to replay.</text>
 </svg>
