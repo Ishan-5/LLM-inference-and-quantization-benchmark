@@ -92,6 +92,24 @@ Expected for every backend: `errors=0`, `out_tokens>0`, `gpu_ok=True`, `rows=12`
 If `vllm_awq` fails to load, stop and fix it before the full run. Do not substitute the
 HF-AWQ row for it — the whole point is the same-engine comparison.
 
+### If `llama_cpp` is missing
+
+If the smoke run stops with `ModuleNotFoundError: No module named 'llama_cpp'`, install the
+prebuilt CUDA wheel and re-run only the remaining backends:
+
+```python
+!python -m pip install -q "llama-cpp-python==0.3.38" --extra-index-url https://abetlen.github.io/llama-cpp-python/whl/cu124
+!python -m llmbench.cli doctor
+
+!python -m llmbench.cli all --config configs/benchmark_v2.yaml --backends llamacpp,awq,vllm_awq --limit-prompts 8 --results-dir results_v2_smoke
+```
+
+`hf` and `vllm` rows from the first attempt are still valid; do not repeat them just to
+fix llama.cpp. Re-run the validation cell and continue only when all five files exist.
+
+`RuntimeError: Event loop is closed` from vLLM during shutdown, after `[vllm] quality eval`
+has printed, is harmless cleanup noise. Confirm with the JSON validation cell instead.
+
 ---
 
 ## Step 4 — full v2 run
