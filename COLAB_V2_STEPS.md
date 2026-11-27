@@ -110,12 +110,32 @@ fix llama.cpp. Re-run the validation cell and continue only when all five files 
 `RuntimeError: Event loop is closed` from vLLM during shutdown, after `[vllm] quality eval`
 has printed, is harmless cleanup noise. Confirm with the JSON validation cell instead.
 
+### If llama.cpp smoke runs for over an hour
+
+The measured llama.cpp path processes concurrent requests sequentially, so the c=8/c=16
+smoke batches can take far longer than the other backends. llama.cpp is **not required**
+for the v2 gaps (n=200 MMLU, repeats, same-engine quantization). Interrupt the cell and
+continue with only the missing backends:
+
+```python
+!python -m llmbench.cli all --config configs/benchmark_v2.yaml --backends awq,vllm_awq --limit-prompts 8 --results-dir results_v2_smoke
+```
+
+Then expect 4 benchmark files: `hf`, `vllm`, `awq`, `vllm_awq`. Use the v2 run command
+below with `BACKENDS=hf,vllm,awq,vllm_awq` to skip llama.cpp in the full run too.
+
 ---
 
 ## Step 4 — full v2 run
 
 ```python
 !bash scripts/run_all_v2.sh
+```
+
+If llama.cpp was skipped in smoke, use this instead:
+
+```python
+!BACKENDS=hf,vllm,awq,vllm_awq bash scripts/run_all_v2.sh
 ```
 
 Equivalent explicit command:
