@@ -3,7 +3,7 @@
 Use this for the **final portfolio numbers** (Qwen2.5-1.5B, vLLM included).
 The local RTX 3050 results are already in `results_laptop/`; do not mix them with these.
 
-**Status:** completed. The downloaded `results_final.zip` was extracted into `results/`; the final report is `results/tradeoff_table.md`. These steps are kept for reproduction.
+**Status:** completed. The downloaded `results_final.zip` was extracted into `results/`; the final report is `results/tradeoff_table.md`. `configs/benchmark.yaml` is kept at the published settings (`mmlu_examples: 40`, `repeats: 1`) so this run is reproducible. These steps are kept for reproduction; raising those values requires a fresh run and new reported numbers.
 
 ---
 
@@ -189,7 +189,7 @@ from google.colab import files
 files.download("results_final.zip")
 ```
 
-Copy `results/tradeoff_table.md` and `results/summary.csv` into your project when back on Windows.
+Copy `results/tradeoff_table.md`, `results/summary.csv`, and `results/summary.json` into your project when back on Windows. The dashboard snapshot is `docs/data/summary.json`.
 
 ---
 

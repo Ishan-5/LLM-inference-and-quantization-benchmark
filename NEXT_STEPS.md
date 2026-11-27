@@ -3,13 +3,20 @@
 ## Current status
 
 - **Done:** final portfolio run on Colab T4 with `configs/benchmark.yaml` (Qwen2.5-1.5B, concurrency 1/4/8/16, `hf`, `vllm`, `llamacpp`, `awq`). See `results/tradeoff_table.md`. All benchmark rows have 0 errors, non-zero output tokens, and GPU memory readings.
-- **Winner:** `vllm` at 809.97 out tok/s @16, 57.50% MMLU, PPL 28.89, 12,968 MiB peak, 2.13× faster than HF.
+- **Winner:** `vllm` at 809.97 out tok/s @16, 57.50% MMLU on a 40-question subset (95% CI 42.2–71.5), PPL 28.89, 12,968 MiB peak, 2.13× faster than HF. Its memory includes preallocated KV cache.
 - **Done locally:** reduced RTX 3050 Laptop run with `hf`, `llamacpp`, `awq`, and `gptq`. See `results_laptop/tradeoff_table.md`.
 - **Not valid locally:** GPTQ quality. The Windows wheel has no CUDA kernels; its PPL/MMLU rows must be ignored.
 - **Not available locally:** vLLM. It needs WSL2 or Linux.
 - **Skipped in final run:** GPTQ, because `auto_gptq` was unavailable in the Colab environment. GPTQ is optional and does not affect the valid four-backend comparison.
 
-Nothing is left to run unless you want optional extra repeats or a GPTQ comparison. The instructions below are kept for reproducing the T4 run.
+The published table is valid as measured, but these limitations are now documented in `README.md` and `results/tradeoff_table.md`:
+
+- MMLU used n=40, so deltas are not statistically meaningful. Use 200+ examples and rerun before making quality claims.
+- There was one repeat per concurrency level, so p95 variance is unknown. Use `repeats: 2` or `3` and report error bars.
+- AWQ ran in the HF engine while vLLM ran FP16 in vLLM. A vLLM+AWQ run is needed to isolate quantization from engine effects.
+- GPTQ remains optional and unavailable in the final Colab environment.
+
+The instructions below reproduce the published single-run, n=40 T4 configuration.
 
 ## 1. Choose where to run
 
@@ -78,10 +85,10 @@ To include GPTQ as a fifth setup:
 - `results/summary.csv` — numbers for charts.
 - `results/raw/*.json` — evidence and package versions.
 
-Then edit `README.md`:
-1. Replace the placeholder resume line with your generated one.
-2. Add a 5–8 sentence "What I found" section using your actual numbers.
-3. Add 2–3 plots from `summary.csv` if you want a stronger portfolio artifact.
+Then check `README.md`:
+1. Confirm headline numbers match the generated report.
+2. Keep MMLU intervals and the explicit caveats.
+3. Do not reintroduce claims about `0.00 pp` MMLU change or an `80%` VRAM cut.
 
 ## 7. If something breaks
 
@@ -91,8 +98,8 @@ Then edit `README.md`:
 | vLLM install fails | Skip it with `--backends hf,llamacpp,awq`; retry later |
 | llama.cpp is CPU-only | Install CUDA wheel/build; if impossible, label it as CPU, don't compare as GPU |
 | AWQ OOM | Lower `gpu_memory_utilization` for vLLM or run backends one at a time (the CLI already does this) |
-| MMLU numbers look random | Increase `mmlu_examples` to 100; treat it as regression detection only |
-| p95 jumps around | Set `repeats: 2` or `3` in `configs/benchmark.yaml` |
+| MMLU numbers look random | Increase `mmlu_examples` to 200+ and rerun; at n=40 report Wilson intervals only |
+| p95 jumps around | Set `repeats: 2` or `3` and report variance; the published run has no error bars |
 
 ## 8. Minimum viable portfolio result
 
@@ -103,4 +110,4 @@ If you only have 2–3 hours, run this instead:
 !python -m llmbench.cli report
 ```
 
-That still gives you three setups, concurrency 1/4/8/16, quality delta, and a recommendation.
+That still gives you three setups, concurrency 1/4/8/16, quality point estimates with intervals, and a recommendation.
