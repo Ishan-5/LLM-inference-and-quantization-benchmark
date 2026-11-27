@@ -255,7 +255,13 @@ Known approximation: llama.cpp streaming reports content chunks, so token arriva
 - [`results/summary.csv`](results/summary.csv) — numbers for charts.
 - [`results/summary.json`](results/summary.json) — machine-readable winner and summaries.
 - [`results/raw/*.json`](results/raw/) — benchmark, quality, and environment evidence.
+- [`CLAIMS.md`](CLAIMS.md) — claim → evidence → caveat ledger.
+- [`tests/`](tests/) — report/config regression checks (`python -m unittest discover -s tests -v`).
 - This README — methodology, mechanisms, and why the result happened.
+
+## Prepared v2 run — not yet executed
+
+[`COLAB_V2_STEPS.md`](COLAB_V2_STEPS.md) and [`configs/benchmark_v2.yaml`](configs/benchmark_v2.yaml) close the remaining gaps: **n=200 MMLU**, **3 repeats**, and a **same-engine vLLM FP16 vs AWQ** comparison. It writes to `results_v2/` and will not overwrite the published table. Do not quote v2 numbers until that run exists.
 
 Numbers come from the generated report, not from a template.
 
