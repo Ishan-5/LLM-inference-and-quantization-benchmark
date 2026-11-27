@@ -1,6 +1,8 @@
-# Colab v2 run — prepared, not yet executed
+# Colab v2 run — completed
 
-This run closes the three documented gaps **without overwriting the published `results/`**:
+**Status:** the v2 T4 run is complete and is now the primary portfolio result. This document is kept as the reproduction checklist.
+
+This run closed the three documented gaps **without overwriting `results/`**:
 
 | Gap | Published run | v2 |
 |---|---|---|
@@ -191,11 +193,9 @@ from google.colab import files
 files.download("results_v2.zip")
 ```
 
-Upload `results_v2.zip` back here. I will then:
+The downloaded `results_v2.zip` was ingested locally. The report was regenerated,
+`docs/data/summary.json` was replaced with the v2 snapshot, `CLAIMS.md` was updated,
+and the changes were committed and pushed.
 
-1. generate the v2 report and dashboard data,
-2. add error bars to the charts,
-3. update `CLAIMS.md`,
-4. commit and push.
-
-The published `results/` stays untouched until you decide whether v2 becomes the new headline.
+`results/` remains untouched as the v1 baseline with llama.cpp. It is no longer the
+headline result.
