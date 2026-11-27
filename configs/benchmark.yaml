@@ -4,7 +4,7 @@ results_dir: results
 benchmark:
   prompts_per_level: 32        # requests per concurrency level
   concurrency_levels: [1, 4, 8, 16]
-  repeats: 1                   # increase to 2-3 for more stable p95
+  repeats: 1                   # published run; raise to 2-3 for future error bars
   warmup_requests: 4
   input_tokens: 128
   max_new_tokens: 128
@@ -23,7 +23,7 @@ quality:
     - college_computer_science
     - high_school_mathematics
     - miscellaneous
-  mmlu_examples: 40
+  mmlu_examples: 40            # published run; raise to 200+ for future quality runs
   seed: 42
   max_acceptable_quality_loss_pp: 2.0
 
