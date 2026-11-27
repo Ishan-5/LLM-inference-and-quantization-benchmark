@@ -174,6 +174,9 @@
     .env b { color: var(--text); font-weight: 600; }
 
     .error { color: #ff7b72; }
+    .caveats { margin: 0 0 10px; padding-left: 20px; color: var(--muted); font-size: 13px; }
+    .caveats li + li { margin-top: 7px; }
+    .caveats b { color: var(--text); }
     footer { margin-top: 34px; color: var(--muted); font-size: 12px; }
 
     @media (max-width: 700px) {
@@ -188,7 +191,7 @@
   <header>
     <div class="eyebrow"><span class="dot"></span> final run · tesla t4 · qwen2.5-1.5b</div>
     <h1>LLM Inference &amp; <span>Quantization Benchmark</span></h1>
-    <p class="lede">Four serving strategies. One deterministic workload. Measured throughput, tail latency, GPU memory, MMLU, and perplexity under 1–16 concurrent users.</p>
+    <p class="lede">Four serving strategies. One deterministic workload. Measured throughput, tail latency, GPU memory, MMLU with 95% intervals, and perplexity under 1–16 concurrent users.</p>
     <div class="links">
       <a href="https://github.com/Ishan-5/LLM-inference-and-quantization-benchmark/blob/main/results/tradeoff_table.md">Full report ↗</a>
       <a href="data/summary.json">Raw summary JSON ↗</a>
@@ -237,11 +240,25 @@
         <thead>
           <tr>
             <th>Setup</th><th>Out tok/s</th><th>Total tok/s</th><th>E2E p95 ms</th>
-            <th>Peak MiB</th><th>MMLU %</th><th>PPL</th><th>vs HF</th>
+            <th>Peak MiB</th><th>MMLU % (95% CI)</th><th>PPL</th><th>vs HF</th>
           </tr>
         </thead>
         <tbody id="rows"></tbody>
       </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Read this before citing the numbers</h2>
+    <div class="panel">
+      <ul class="caveats">
+        <li><b>MMLU is a 40-question subset.</b> All Wilson 95% intervals overlap; point-estimate deltas are noise, not findings.</li>
+        <li><b>AWQ vs HF is the clean quantization comparison</b> because both ran in the HF engine: 2,588 MiB vs 4,380 MiB, or 41% less VRAM. AWQ throughput was lower.</li>
+        <li><b>vLLM vs AWQ is confounded</b> by engine and quantization together. A vLLM+AWQ run is future work.</li>
+        <li><b>vLLM memory includes preallocated KV cache.</b> It is not a model-weight-only footprint.</li>
+        <li><b>One repeat per concurrency level.</b> p95 variance is unknown.</li>
+      </ul>
+      <p class="small">Full methodology and caveats: <a href="https://github.com/Ishan-5/LLM-inference-and-quantization-benchmark/blob/main/results/tradeoff_table.md">results/tradeoff_table.md ↗</a></p>
     </div>
   </section>
 
@@ -283,12 +300,15 @@ function renderAll() {
 function renderCards() {
   const w = DATA.winner;
   const hf = DATA.summary.find(r => r.backend === "hf") || {};
-  const saved = hf.peak_gpu_mib ? Math.round(100 * (1 - w.peak_gpu_mib / hf.peak_gpu_mib)) : 0;
+  const awq = DATA.summary.find(r => r.backend === "awq") || {};
+  const saved = hf.peak_gpu_mib && awq.peak_gpu_mib
+    ? Math.round(100 * (1 - awq.peak_gpu_mib / hf.peak_gpu_mib)) : null;
+  const speed = w.speedup_vs_baseline ? w.speedup_vs_baseline.toFixed(2) : "n/a";
   const cards = [
-    { kicker: "winner", big: w.backend.toUpperCase(), small: "2.13× faster than HF at 16 users", hero: true },
+    { kicker: "winner", big: w.backend.toUpperCase(), small: speed + "× faster than HF at " + w.concurrency + " users", hero: true },
     { kicker: "throughput", big: w.out_tok_s.toFixed(1), small: "output tokens / second" },
-    { kicker: "quality", big: w.mmlu_accuracy_pct.toFixed(1) + "%", small: "MMLU · PPL " + w.perplexity.toFixed(2) },
-    { kicker: "vram saved vs hf", big: saved + "%", small: Math.round(w.peak_gpu_mib).toLocaleString() + " MiB peak" }
+    { kicker: "quality", big: w.mmlu_accuracy_pct.toFixed(1) + "%", small: "MMLU 95% CI " + (w.mmlu_ci95_text || "n/a") + " · PPL " + w.perplexity.toFixed(2) },
+    { kicker: "AWQ VRAM vs HF", big: saved === null ? "—" : saved + "%", small: "same engine · HF " + Math.round(hf.peak_gpu_mib || 0).toLocaleString() + " → AWQ " + Math.round(awq.peak_gpu_mib || 0).toLocaleString() + " MiB" }
   ];
   document.getElementById("cards").innerHTML = cards.map(c =>
     `<div class="card ${c.hero ? "hero" : ""}">
@@ -322,7 +342,7 @@ function renderRows() {
        <td>${r.total_tok_s.toFixed(2)}</td>
        <td>${Math.round(r.e2e_p95_ms).toLocaleString()}</td>
        <td>${Math.round(r.peak_gpu_mib).toLocaleString()}</td>
-       <td>${r.mmlu_accuracy_pct.toFixed(2)}</td>
+       <td>${r.mmlu_accuracy_pct.toFixed(2)} <span class="small">(${r.mmlu_ci95_text || "n/a"})</span></td>
        <td>${r.perplexity.toFixed(2)}</td>
        <td>${r.speedup_vs_baseline.toFixed(2)}×</td>
      </tr>`).join("");
