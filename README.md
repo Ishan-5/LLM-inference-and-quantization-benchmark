@@ -11,7 +11,7 @@
 
 One model. Four serving strategies. One fair workload. Real latency, throughput, VRAM, MMLU, and perplexity numbers on a Tesla T4.
 
-[Live dashboard](https://ishan-5.github.io/LLM-inference-and-quantization-benchmark/) · [Final report](results/tradeoff_table.md) · [Summary CSV](results/summary.csv) · [Raw evidence](results/raw/) · [Colab steps](COLAB_STEPS.md) · [Local run](LOCAL_LAPTOP.md)
+[Dashboard source](docs/index.html) (live at `https://ishan-5.github.io/LLM-inference-and-quantization-benchmark/` once Pages is enabled) · [Final report](results/tradeoff_table.md) · [Summary CSV](results/summary.csv) · [Raw evidence](results/raw/) · [Colab steps](COLAB_STEPS.md) · [Local run](LOCAL_LAPTOP.md)
 
 </div>
 
@@ -29,16 +29,16 @@ One model. Four serving strategies. One fair workload. Real latency, throughput,
 
 ## Final result — Tesla T4 16 GB
 
-Qwen2.5-1.5B-Instruct · concurrency 1 / 4 / 8 / 16 · greedy decoding · 128 input tokens · 128 max new tokens.
+Qwen2.5-1.5B-Instruct · concurrency 1 / 4 / 8 / 16 · greedy decoding · 128 input tokens · 128 max new tokens. MMLU is a **40-question** subset; Wilson 95% intervals are shown because the point estimates are not statistically distinguishable.
 
-| Setup | Out tok/s @16 | Total tok/s @16 | E2E p95 ms | TTFT p95 ms | Peak GPU MiB | MMLU % | WikiText PPL | ΔMMLU | Speedup vs HF |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| **vllm** | **809.97** | **1,656.85** | **2,523.64** | 115.07 | 12,968 | **57.50** | **28.89** | **+0.00** | **2.13×** |
-| hf | 379.90 | 777.11 | 5,733.60 | **76.33** | 4,380 | 57.50 | 28.90 | +0.00 | 1.00× |
-| awq | 222.10 | 453.52 | 9,264.46 | 130.31 | **2,588** | 47.50 | 30.81 | −10.00 | 0.58× |
-| llamacpp | 5.26 | 10.00 | 365,643.37 | 345,755.96 | 450 | 55.00 | 29.93 | −2.50 | 0.01× |
+| Setup | Out tok/s @16 | Total tok/s @16 | E2E p95 ms | TTFT p95 ms | Peak GPU MiB | MMLU % (95% CI) | WikiText PPL | Speedup vs HF |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| **vllm** | **809.97** | **1,656.85** | **2,523.64** | 115.07 | 12,968 | **57.50** (42.2–71.5) | **28.89** | **2.13×** |
+| hf | 379.90 | 777.11 | 5,733.60 | **76.33** | 4,380 | 57.50 (42.2–71.5) | 28.90 | 1.00× |
+| awq | 222.10 | 453.52 | 9,264.46 | 130.31 | **2,588** | 47.50 (32.9–62.5) | 30.81 | 0.58× |
+| llamacpp | 5.26 | 10.00 | 365,643.37 | 345,755.96 | 450 | 55.00 (39.8–69.3) | 29.93 | 0.01× |
 
-**Winner: `vllm`.** It delivers **2.13×** the throughput of plain Transformers at concurrency 16, with **no MMLU loss** and slightly better perplexity.
+**Winner: `vllm`.** It delivers **2.13×** the throughput of plain Transformers at concurrency 16. It uses the same FP16 weights as HF, so identical MMLU is expected — not evidence of a quality advantage. Its 12,968 MiB peak includes preallocated KV cache, not just model weights.
 
 ```mermaid
 xychart-beta
@@ -113,21 +113,28 @@ Each backend runs in its own process. Mixing vLLM, AWQ, and Transformers in one 
 | WikiText perplexity | Generic language-model quality regression |
 | MMLU subset accuracy | Task-level quality regression, reported in percentage points |
 
-Quality columns are deltas against the `hf` baseline: `ΔMMLU` in percentage points and `ΔPPL` as absolute perplexity change. The configured gate is `max_acceptable_quality_loss_pp: 2.0`.
+Quality columns are reported against the `hf` baseline, but at n=40 a 2-pp gate is smaller than one question. Treat MMLU as a regression screen with intervals, not a significance test. `configs/benchmark.yaml` reproduces the published table (`mmlu_examples: 40`, `repeats: 1`); future runs should use 200+ MMLU examples and 2–3 repeats before making quality or variance claims.
 
 ---
 
 ## What I found
 
-**1. Continuous batching is the headline win.** vLLM reaches 810 out tok/s at 16 users versus 380 for HF. Its advantage grows with concurrency because new requests enter as soon as a sequence finishes; HF waits for the slowest member of a static batch.
+**1. Continuous batching is the headline win — and it is expected.** vLLM reaches 810 out tok/s at 16 users versus 380 for HF. Its advantage grows with concurrency because new requests enter as soon as a sequence finishes; HF waits for the slowest member of a static batch. This is a well-known result; the value here is that the harness measures it reproducibly.
 
 **2. Paged KV cache keeps the tail small.** vLLM E2E p95 is 2,524 ms versus 5,734 ms for HF. PagedAttention reduces fragmentation and keeps more concurrent sequences resident.
 
-**3. 4-bit quantization saves memory, not automatically time.** AWQ uses only 2,588 MiB — 80% less than HF — but it is slower here (222 tok/s) and loses 10 MMLU points. On a bandwidth-bound T4, custom 4-bit kernels can lose at larger batches. The correct claim is *on this hardware, at this concurrency, with this kernel stack*, not "quantization is always faster."
+**3. AWQ's clean win is memory, not speed.** In the same HF engine, AWQ uses 2,588 MiB versus HF's 4,380 MiB — **41% less VRAM** — while throughput is lower (222 vs 380 tok/s). The MMLU point estimate is lower (47.5% vs 57.5%), but the 95% intervals overlap heavily, so that difference is not a finding at n=40.
 
-**4. llama.cpp is a deployment tradeoff, not a throughput winner here.** It uses just 450 MiB and keeps 55% MMLU, but the measured path processes concurrent requests sequentially, so its rows are repeated single-stream measurements rather than shared-server batching.
+**4. llama.cpp is a deployment tradeoff, not a throughput winner here.** It uses just 450 MiB and scores 55.0% MMLU (95% CI 39.8–69.3), but the measured path processes concurrent requests sequentially, so its rows are repeated single-stream measurements rather than shared-server batching.
 
 **5. HF is the control, not the punchline.** Its rising tail latency is what makes the other numbers meaningful.
+
+## What this does not show
+
+- **No vLLM+AWQ comparison.** AWQ ran through the HF engine; vLLM ran FP16 through vLLM. Comparing them confounds engine with quantization. Only HF vs AWQ isolates quantization.
+- **No statistical quality claim.** MMLU used n=40. All 95% intervals overlap; a 10-pp gap is about four questions.
+- **No p95 error bars.** There was one measured repeat per concurrency level. The published config stays at `repeats: 1` for reproducibility; future runs should use 2–3 repeats and report variance.
+- **No novelty claim.** "vLLM beats plain Transformers under concurrency" is known. The contribution is the harness, the fixed workload, and the explicit uncertainty reporting.
 
 ---
 
@@ -234,8 +241,8 @@ Known approximation: llama.cpp streaming reports content chunks, so token arriva
 | --- | --- |
 | Colab/Kaggle GPU is not actually T4 | `doctor` prints GPU name; saved in `results/raw/env_*.json` |
 | llama.cpp built for CPU | Label it clearly; do not compare as GPU |
-| MMLU subset too noisy | Use 40–100 examples; treat as regression detection only |
-| p95 unstable | Set `repeats: 2` or `3` in the config |
+| MMLU subset too noisy | Published run used n=40; use 200+ in future runs and report Wilson intervals |
+| p95 unstable | Published run used 1 repeat; set `repeats: 2` or `3` for future runs |
 | AWQ OOM | Lower `gpu_memory_utilization` for vLLM; backends already run separately |
 | GPTQ quality invalid on Windows | Check `raw/env_*.json` and `raw/quality_*.json` before trusting it |
 
@@ -243,14 +250,12 @@ Known approximation: llama.cpp streaming reports content chunks, so token arriva
 
 ## Final deliverables
 
-- [Live dashboard](https://ishan-5.github.io/LLM-inference-and-quantization-benchmark/) — interactive charts and headline table.
+- [Dashboard source](docs/index.html) — interactive charts and headline table. Live URL: `https://ishan-5.github.io/LLM-inference-and-quantization-benchmark/` once GitHub Pages is enabled from `main` / `docs`.
 - [`results/tradeoff_table.md`](results/tradeoff_table.md) — final table, recommendation, caveats.
 - [`results/summary.csv`](results/summary.csv) — numbers for charts.
 - [`results/summary.json`](results/summary.json) — machine-readable winner and summaries.
 - [`results/raw/*.json`](results/raw/) — benchmark, quality, and environment evidence.
 - This README — methodology, mechanisms, and why the result happened.
-
-
 
 Numbers come from the generated report, not from a template.
 
