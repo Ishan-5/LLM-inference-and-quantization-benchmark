@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>LLM Inference Benchmark — Results Dashboard</title>
-  <meta name="description" content="Interactive results dashboard for a Tesla T4 benchmark of vLLM, HF, AWQ, and llama.cpp.">
+  <meta name="description" content="Interactive v2 results dashboard for a Tesla T4 benchmark of HF FP16, HF AWQ, vLLM FP16, and vLLM AWQ.">
   <style>
     :root {
       color-scheme: dark;
@@ -192,11 +192,12 @@
 <body>
 <div class="wrap">
   <header>
-    <div class="eyebrow"><span class="dot"></span> final run · tesla t4 · qwen2.5-1.5b</div>
+    <div class="eyebrow"><span class="dot"></span> primary run v2 · tesla t4 · qwen2.5-1.5b</div>
     <h1>LLM Inference &amp; <span>Quantization Benchmark</span></h1>
-    <p class="lede">Four serving strategies. One deterministic workload. Measured throughput, tail latency, GPU memory, MMLU with 95% intervals, and perplexity under 1–16 concurrent users.</p>
+    <p class="lede">Four serving strategies: HF FP16, HF AWQ, vLLM FP16, and vLLM AWQ. One deterministic workload with n=200 MMLU and 3 repeats per concurrency level.</p>
     <div class="links">
-      <a href="https://github.com/Ishan-5/LLM-inference-and-quantization-benchmark/blob/main/results/tradeoff_table.md">Full report ↗</a>
+      <a href="https://github.com/Ishan-5/LLM-inference-and-quantization-benchmark/blob/main/results_v2/tradeoff_table.md">Primary v2 report ↗</a>
+      <a href="https://github.com/Ishan-5/LLM-inference-and-quantization-benchmark/blob/main/results/tradeoff_table.md">Published v1 report ↗</a>
       <a href="data/summary.json">Raw summary JSON ↗</a>
       <a href="https://github.com/Ishan-5/LLM-inference-and-quantization-benchmark">Repository ↗</a>
     </div>
@@ -218,7 +219,7 @@
         <span id="chips" class="toolbar"></span>
       </div>
       <svg id="lineChart" viewBox="0 0 920 380" role="img" aria-label="Line chart of selected metric by concurrency"></svg>
-      <p class="small">Whiskers show ±1 sample SD when repeats &gt; 1. The published snapshot has one repeat, so no whiskers appear until v2 data is loaded.</p>
+      <p class="small">Whiskers show ±1 sample SD across 3 repeats per concurrency level.</p>
     </div>
   </section>
 
@@ -256,18 +257,19 @@
     <h2>Read this before citing the numbers</h2>
     <div class="panel">
       <ul class="caveats">
-        <li><b>MMLU is a 40-question subset.</b> All Wilson 95% intervals overlap; point-estimate deltas are noise, not findings.</li>
-        <li><b>AWQ vs HF is the clean quantization comparison</b> because both ran in the HF engine: 2,588 MiB vs 4,380 MiB, or 41% less VRAM. AWQ throughput was lower.</li>
-        <li><b>Published vLLM vs AWQ is confounded</b> by engine and quantization together. <code>configs/benchmark_v2.yaml</code> is prepared with a same-engine vLLM+AWQ run.</li>
+        <li><b>MMLU uses n=200 per backend.</b> All Wilson 95% intervals still overlap; point-estimate deltas are not significance findings.</li>
+        <li><b>AWQ vs HF is a clean quantization comparison</b> inside the HF engine: 2,588 MiB vs 4,380 MiB, or 41% less VRAM. Throughput was lower.</li>
+        <li><b>vLLM FP16 vs vLLM AWQ is also same-engine.</b> AWQ is faster here (1,384.8 vs 813.5 out tok/s), but peak VRAM is nearly identical because vLLM preallocates KV cache.</li>
         <li><b>vLLM memory includes preallocated KV cache.</b> It is not a model-weight-only footprint.</li>
-        <li><b>Published run has one repeat per concurrency level.</b> p95 variance is unknown; v2 uses 3 repeats and adds error bars.</li>
+        <li><b>3 repeats per concurrency level.</b> Charts show ±1 SD; small n still means uncertainty in tail latency.</li>
+        <li><b>llama.cpp is not in v2.</b> Its sequential concurrent path is documented in the v1 report at <code>results/tradeoff_table.md</code>.</li>
       </ul>
-      <p class="small">Full methodology and caveats: <a href="https://github.com/Ishan-5/LLM-inference-and-quantization-benchmark/blob/main/results/tradeoff_table.md">results/tradeoff_table.md ↗</a></p>
+      <p class="small">Full methodology and caveats: <a href="https://github.com/Ishan-5/LLM-inference-and-quantization-benchmark/blob/main/results_v2/tradeoff_table.md">results_v2/tradeoff_table.md ↗</a></p>
     </div>
   </section>
 
   <footer>
-    Static dashboard. Data is a snapshot of <code>results/summary.json</code> copied to <code>docs/data/summary.json</code> because GitHub Pages cannot read parent folders.
+    Static dashboard. Data is a snapshot of <code>results_v2/summary.json</code> copied to <code>docs/data/summary.json</code> because GitHub Pages cannot read parent folders.
   </footer>
 </div>
 
@@ -275,10 +277,10 @@
 const COLORS = { vllm: "#58a6ff", hf: "#a371f7", awq: "#3fb950", llamacpp: "#d29922", vllm_awq: "#f778ba" };
 const BACKENDS = Object.keys(COLORS);
 const METRICS = {
-  out_tok_s:   { label: "Output tokens / sec", max: 900,    fmt: v => v.toFixed(1) },
-  total_tok_s: { label: "Total tokens / sec",  max: 1800,   fmt: v => v.toFixed(1) },
-  peak_gpu_mib:{ label: "Peak GPU MiB",        max: 14000,  fmt: v => Math.round(v).toLocaleString() },
-  ttft_p95_ms: { label: "TTFT p95 ms",         max: 360000, fmt: v => Math.round(v).toLocaleString() }
+  out_tok_s:   { label: "Output tokens / sec", max: 1500,  fmt: v => v.toFixed(1) },
+  total_tok_s: { label: "Total tokens / sec",  max: 3000,  fmt: v => v.toFixed(1) },
+  peak_gpu_mib:{ label: "Peak GPU MiB",        max: 14000, fmt: v => Math.round(v).toLocaleString() },
+  ttft_p95_ms: { label: "TTFT p95 ms",         max: 200,   fmt: v => Math.round(v).toLocaleString() }
 };
 
 let DATA = null;
