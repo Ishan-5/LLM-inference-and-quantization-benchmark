@@ -5,12 +5,12 @@
 
 ## Headline table (highest concurrency tested)
 
-| Setup | Concurrency | Out tok/s | Total tok/s | E2E p95 ms | TTFT p95 ms | Peak GPU MiB | MMLU % | WikiText PPL | ΔMMLU | ΔPPL | Speedup vs hf |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| awq | 16 | 222.10 | 453.52 | 9,264.46 | 130.31 | 2,588.20 | 47.50 | 30.81 | -10.00 | +1.908 | 0.58 |
-| hf | 16 | 379.90 | 777.11 | 5,733.60 | 76.33 | 4,380.20 | 57.50 | 28.90 | +0.00 | +0.000 | 1.00 |
-| llamacpp | 16 | 5.26 | 10.00 | 365,643.37 | 345,755.96 | 450.20 | 55.00 | 29.93 | -2.50 | +1.031 | 0.01 |
-| vllm | 16 | 809.97 | 1,656.85 | 2,523.64 | 115.07 | 12,968.20 | 57.50 | 28.89 | +0.00 | -0.011 | 2.13 |
+| Setup | Concurrency | Out tok/s | Total tok/s | E2E p95 ms | TTFT p95 ms | Peak GPU MiB | MMLU % | MMLU 95% CI | WikiText PPL | ΔMMLU | ΔPPL | Speedup vs hf |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| awq | 16 | 222.10 | 453.52 | 9,264.46 | 130.31 | 2,588.20 | 47.50 | 32.9–62.5 | 30.81 | -10.00 | +1.908 | 0.58 |
+| hf | 16 | 379.90 | 777.11 | 5,733.60 | 76.33 | 4,380.20 | 57.50 | 42.2–71.5 | 28.90 | +0.00 | +0.000 | 1.00 |
+| llamacpp | 16 | 5.26 | 10.00 | 365,643.37 | 345,755.96 | 450.20 | 55.00 | 39.8–69.3 | 29.93 | -2.50 | +1.031 | 0.01 |
+| vllm | 16 | 809.97 | 1,656.85 | 2,523.64 | 115.07 | 12,968.20 | 57.50 | 42.2–71.5 | 28.89 | +0.00 | -0.011 | 2.13 |
 
 ## Per-concurrency detail
 
@@ -35,23 +35,28 @@
 
 ## Recommendation
 
-Pick **`vllm`** for the latency/throughput-sensitive path: it delivered **810.0 output tokens/sec** at concurrency 16 within the 2-point quality gate (ΔMMLU +0.00 pp). Peak GPU memory was **12,968 MiB**.
+Pick **`vllm`** for the latency/throughput-sensitive path: it delivered **810.0 output tokens/sec** at concurrency 16, using the same FP16 weights as `hf`; identical MMLU is expected with greedy decoding and is not evidence of a quality advantage. Peak GPU memory was **12,968 MiB**, which for vLLM includes preallocated KV cache rather than model weights alone.
 
 ### Why this setup wins
 
 - **Continuous batching** admits new requests as soon as a sequence finishes, so the GPU is not idle while waiting for the slowest member of a static batch.
 - **PagedAttention** stores the KV cache in fixed-size blocks, reducing fragmentation and letting more concurrent sequences stay resident.
 - Expect the largest gain at concurrency 4–16; at concurrency 1 the advantage is mostly kernel/runtime overhead.
+- vLLM beating plain Transformers at high concurrency is a known result; the useful contribution here is the reproducible harness and the explicit uncertainty reporting.
 
 ### What to put on a resume
 
-> Benchmarked 4 inference setups under 16 concurrent users; found **vllm** gives **2.13×** throughput versus plain Transformers at **0.00** points of MMLU change.
+> Built a reproducible harness for 4 inference setups at 1–16 concurrent users on Tesla T4; measured **vllm** at **810.0 output tok/s** (2.13× HF) and quantified **AWQ's 41% VRAM reduction vs HF in the same engine**.
 
 ## Caveats
 
 - A T4 is memory-bandwidth constrained; rankings can change on A100/H100 class GPUs.
 - GGUF and 4-bit kernels are build-sensitive. Record the exact package versions from `results/raw/env_*.json`.
-- MMLU here is a small fixed subset, not a full leaderboard score. Use it only to detect regression, not to claim state of the art.
+- MMLU used a fixed subset of n=40 per backend. Wilson 95% intervals are in the headline table and overlap heavily; point-estimate deltas are not statistically distinguishable at this size. Future runs should use 200+ examples before making quality claims.
+- The configured 2-pp quality gate is smaller than one question at n=40. It is a screening heuristic, not a significance test.
+- There was one measured repeat per concurrency level, so p95 has no error bars. Future runs should set `repeats: 2` or `3`; the published config deliberately stays at 1 so it reproduces the reported numbers.
+- AWQ ran through the HF engine while vLLM ran FP16 through vLLM. Cross-engine comparisons confound engine and quantization; only HF vs AWQ isolates quantization. A vLLM+AWQ run is future work.
+- vLLM's peak GPU memory includes preallocated KV cache. It is not a model-weight-only footprint and should not be used as a direct memory-efficiency comparison.
 - Streaming chunk counts are used as token arrival times for llama.cpp; vLLM/HF use native token IDs.
 - On native Windows, vLLM is unavailable and GPTQ wheels may lack CUDA kernels. Check `raw/env_*.json` and `raw/quality_*.json` before treating GPTQ quality numbers as valid.
 - If a backend processes concurrent requests sequentially, its throughput rows are repeated single-stream measurements, not shared-server batching.
