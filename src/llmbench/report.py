@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import math
 from pathlib import Path
 from typing import Any
 
@@ -71,6 +72,18 @@ def _avg(rows: list[dict[str, Any]], key: str) -> Any:
     return round(avg, 2)
 
 
+def _wilson_ci(correct: Any, total: Any) -> list[float] | None:
+    """Wilson 95% interval for a binomial proportion, in percentage points."""
+    if not isinstance(correct, int) or not isinstance(total, int) or total <= 0:
+        return None
+    z = 1.959963984540054
+    p = correct / total
+    denom = 1 + z * z / total
+    center = (p + z * z / (2 * total)) / denom
+    half = z * math.sqrt(p * (1 - p) / total + z * z / (4 * total * total)) / denom
+    return [round(100 * (center - half), 1), round(100 * (center + half), 1)]
+
+
 def _summarize_best_level(perf_rows: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
     for row in perf_rows:
@@ -98,6 +111,11 @@ def _merge_quality(summary: dict[str, dict[str, Any]], quality_rows: list[dict[s
         q = by_backend.get(backend, {})
         row["perplexity"] = q.get("perplexity")
         row["mmlu_accuracy_pct"] = q.get("mmlu_accuracy_pct")
+        row["mmlu_correct"] = q.get("mmlu_correct")
+        row["mmlu_total"] = q.get("mmlu_total")
+        ci = _wilson_ci(q.get("mmlu_correct"), q.get("mmlu_total"))
+        row["mmlu_ci95"] = ci
+        row["mmlu_ci95_text"] = f"{ci[0]:.1f}–{ci[1]:.1f}" if ci else None
         row["perplexity_note"] = q.get("perplexity_note", "")
         row["mmlu_note"] = q.get("mmlu_note", "")
 
@@ -184,6 +202,7 @@ def build_report(results_dir: str | Path, cfg: AppConfig) -> dict[str, Any]:
         ("ttft_p95_ms", "TTFT p95 ms"),
         ("peak_gpu_mib", "Peak GPU MiB"),
         ("mmlu_accuracy_pct", "MMLU %"),
+        ("mmlu_ci95_text", "MMLU 95% CI"),
         ("perplexity", "WikiText PPL"),
         ("delta_mmlu_pp", "ΔMMLU"),
         ("delta_ppl", "ΔPPL"),
@@ -238,19 +257,30 @@ def build_report(results_dir: str | Path, cfg: AppConfig) -> dict[str, Any]:
         ]
 
     if winner:
-        quality_gate = cfg.quality.max_acceptable_quality_loss_pp
-        delta = winner.get("delta_mmlu_pp")
-        quality_text = (
-            f"within the {quality_gate:g}-point quality gate (ΔMMLU {delta:+.2f} pp)"
-            if delta is not None
-            else "with quality data unavailable"
+        baseline = summary.get(baseline_name, {})
+        same_weights = winner.get("model_id") == baseline.get("model_id")
+        if same_weights:
+            quality_text = (
+                f"using the same FP16 weights as `{baseline_name}`; identical MMLU is expected "
+                "with greedy decoding and is not evidence of a quality advantage"
+            )
+        else:
+            quality_text = (
+                "with MMLU reported as a point estimate plus a 95% interval; see the caveats "
+                "before interpreting quality deltas"
+            )
+        vram_note = (
+            "which for vLLM includes preallocated KV cache rather than model weights alone"
+            if str(winner["backend"]) == "vllm"
+            else "sampled during the measured window"
         )
         lines += [
             "## Recommendation",
             "",
             f"Pick **`{winner['backend']}`** for the latency/throughput-sensitive path: it delivered "
-            f"**{fmt(winner.get('out_tok_s'), 1)} output tokens/sec** at concurrency {winner.get('concurrency')} "
-            f"{quality_text}. Peak GPU memory was **{fmt(winner.get('peak_gpu_mib'), 0)} MiB**.",
+            f"**{fmt(winner.get('out_tok_s'), 1)} output tokens/sec** at concurrency {winner.get('concurrency')}, "
+            f"{quality_text}. Peak GPU memory was **{fmt(winner.get('peak_gpu_mib'), 0)} MiB**, "
+            f"{vram_note}.",
             "",
             "### Why this setup wins",
             "",
@@ -258,27 +288,58 @@ def build_report(results_dir: str | Path, cfg: AppConfig) -> dict[str, Any]:
         for bullet in _EXPLANATIONS.get(str(winner["backend"]), []):
             lines.append(f"- {bullet}")
         lines += [
+            "- vLLM beating plain Transformers at high concurrency is a known result; the useful "
+            "contribution here is the reproducible harness and the explicit uncertainty reporting.",
             "",
             "### What to put on a resume",
             "",
-            f"> Benchmarked {len(summary)} inference setups under "
-            f"{max(cfg.benchmark.concurrency_levels) if cfg.benchmark.concurrency_levels else 'N'} concurrent users; "
-            f"found **{winner['backend']}** gives **{fmt(winner.get('speedup_vs_baseline'), 2)}×** "
-            f"throughput versus plain Transformers at **{fmt(delta, 2) if delta is not None else 'n/a'}** points of MMLU change.",
+        ]
+        hf_row = summary.get("hf", {})
+        awq_row = summary.get("awq", {})
+        hf_vram = hf_row.get("peak_gpu_mib")
+        awq_vram = awq_row.get("peak_gpu_mib")
+        if hf_vram and awq_vram:
+            vram_saved = round(100 * (1 - awq_vram / hf_vram))
+            vram_phrase = f"and quantified **AWQ's {vram_saved}% VRAM reduction vs HF in the same engine**"
+        else:
+            vram_phrase = "and measured VRAM/quality tradeoffs across backends"
+        lines += [
+            f"> Built a reproducible harness for {len(summary)} inference setups at 1–"
+            f"{max(cfg.benchmark.concurrency_levels) if cfg.benchmark.concurrency_levels else 'N'} "
+            f"concurrent users on {gpu}; measured **{winner['backend']}** at "
+            f"**{fmt(winner.get('out_tok_s'), 1)} output tok/s** "
+            f"({fmt(winner.get('speedup_vs_baseline'), 2)}× HF) {vram_phrase}.",
             "",
         ]
     else:
         lines += ["## Recommendation", "", "Run the benchmark to generate a data-backed recommendation.", ""]
 
+    mmlu_ns = sorted(
+        {int(r["mmlu_total"]) for r in quality_rows if isinstance(r.get("mmlu_total"), int)}
+    )
+    mmlu_n_text = ", ".join(str(x) for x in mmlu_ns) or "unknown"
     lines += [
         "## Caveats",
         "",
         "- A T4 is memory-bandwidth constrained; rankings can change on A100/H100 class GPUs.",
         "- GGUF and 4-bit kernels are build-sensitive. Record the exact package versions from `results/raw/env_*.json`.",
-        "- MMLU here is a small fixed subset, not a full leaderboard score. Use it only to detect regression, not to claim state of the art.",
+        f"- MMLU used a fixed subset of n={mmlu_n_text} per backend. Wilson 95% intervals are in the "
+        "headline table and overlap heavily; point-estimate deltas are not statistically distinguishable "
+        "at this size. Future runs should use 200+ examples before making quality claims.",
+        f"- The configured {cfg.quality.max_acceptable_quality_loss_pp:g}-pp quality gate is smaller than "
+        "one question at n=40. It is a screening heuristic, not a significance test.",
+        "- There was one measured repeat per concurrency level, so p95 has no error bars. Future runs "
+        "should set `repeats: 2` or `3`; the published config deliberately stays at 1 so it reproduces "
+        "the reported numbers.",
+        "- AWQ ran through the HF engine while vLLM ran FP16 through vLLM. Cross-engine comparisons "
+        "confound engine and quantization; only HF vs AWQ isolates quantization. A vLLM+AWQ run is future work.",
+        "- vLLM's peak GPU memory includes preallocated KV cache. It is not a model-weight-only footprint "
+        "and should not be used as a direct memory-efficiency comparison.",
         "- Streaming chunk counts are used as token arrival times for llama.cpp; vLLM/HF use native token IDs.",
-        "- On native Windows, vLLM is unavailable and GPTQ wheels may lack CUDA kernels. Check `raw/env_*.json` and `raw/quality_*.json` before treating GPTQ quality numbers as valid.",
-        "- If a backend processes concurrent requests sequentially, its throughput rows are repeated single-stream measurements, not shared-server batching.",
+        "- On native Windows, vLLM is unavailable and GPTQ wheels may lack CUDA kernels. Check "
+        "`raw/env_*.json` and `raw/quality_*.json` before treating GPTQ quality numbers as valid.",
+        "- If a backend processes concurrent requests sequentially, its throughput rows are repeated "
+        "single-stream measurements, not shared-server batching.",
         "",
     ]
 
