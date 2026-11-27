@@ -23,6 +23,13 @@
     "wall_s": 16.49,
     "perplexity": 23.641736658789117,
     "mmlu_accuracy_pct": 30.0,
+    "mmlu_correct": 6,
+    "mmlu_total": 20,
+    "mmlu_ci95": [
+      14.5,
+      51.9
+    ],
+    "mmlu_ci95_text": "14.5–51.9",
     "perplexity_note": "",
     "mmlu_note": "",
     "speedup_vs_baseline": 1.52,
@@ -53,6 +60,13 @@
       "wall_s": 43.98,
       "perplexity": 28.459480839053494,
       "mmlu_accuracy_pct": 20.0,
+      "mmlu_correct": 4,
+      "mmlu_total": 20,
+      "mmlu_ci95": [
+        8.1,
+        41.6
+      ],
+      "mmlu_ci95_text": "8.1–41.6",
       "perplexity_note": "",
       "mmlu_note": "",
       "speedup_vs_baseline": 0.57,
@@ -82,6 +96,13 @@
       "wall_s": 60.07,
       "perplexity": 151935.97667582906,
       "mmlu_accuracy_pct": 15.0,
+      "mmlu_correct": 3,
+      "mmlu_total": 20,
+      "mmlu_ci95": [
+        5.2,
+        36.0
+      ],
+      "mmlu_ci95_text": "5.2–36.0",
       "perplexity_note": "",
       "mmlu_note": "",
       "speedup_vs_baseline": 0.42,
@@ -111,6 +132,13 @@
       "wall_s": 25.11,
       "perplexity": 23.6616109671741,
       "mmlu_accuracy_pct": 20.0,
+      "mmlu_correct": 4,
+      "mmlu_total": 20,
+      "mmlu_ci95": [
+        8.1,
+        41.6
+      ],
+      "mmlu_ci95_text": "8.1–41.6",
       "perplexity_note": "",
       "mmlu_note": "",
       "speedup_vs_baseline": 1.0,
@@ -140,6 +168,13 @@
       "wall_s": 16.49,
       "perplexity": 23.641736658789117,
       "mmlu_accuracy_pct": 30.0,
+      "mmlu_correct": 6,
+      "mmlu_total": 20,
+      "mmlu_ci95": [
+        14.5,
+        51.9
+      ],
+      "mmlu_ci95_text": "14.5–51.9",
       "perplexity_note": "",
       "mmlu_note": "",
       "speedup_vs_baseline": 1.52,
