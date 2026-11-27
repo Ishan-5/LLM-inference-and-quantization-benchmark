@@ -132,7 +132,7 @@ for p in sorted(glob.glob("results_v2/raw/quality_*.json")):
     print(os.path.basename(p), "MMLU n=", q.get("mmlu_total"), "note=", q.get("mmlu_note") or "ok")
 ```
 
-Expected: `errors=0`, `out_tokens>0`, `rows=48` per backend, `MMLU n=200`.
+Expected: `errors=0`, `out_tokens>0`, `rows=12` per backend (4 levels × 3 repeats), `MMLU n=200`.
 
 Then open the report:
 
