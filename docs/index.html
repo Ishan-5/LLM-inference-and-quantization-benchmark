@@ -22,6 +22,7 @@
       --hf: #a371f7;
       --awq: #3fb950;
       --llamacpp: #d29922;
+      --vllm-awq: #f778ba;
     }
 
     * { box-sizing: border-box; }
@@ -140,10 +141,12 @@
     .chip[data-backend="hf"].active { color: var(--hf); }
     .chip[data-backend="awq"].active { color: var(--awq); }
     .chip[data-backend="llamacpp"].active { color: var(--llamacpp); }
+    .chip[data-backend="vllm_awq"].active { color: var(--vllm-awq); }
 
     svg { display: block; width: 100%; height: auto; }
     .axis { stroke: var(--border); stroke-width: 1; }
     .gridline { stroke: #21262d; stroke-width: 1; stroke-dasharray: 3 6; }
+    .whisker { stroke-width: 1.5; opacity: .75; }
     .tick { fill: var(--muted); font-size: 11px; }
 
     .bar-row { margin: 14px 0; }
@@ -167,7 +170,7 @@
     th:first-child, td:first-child { text-align: left; }
     tr.winner td { background: rgba(88,166,255,.09); }
     .tag { display: inline-block; padding: 2px 7px; border-radius: 999px; border: 1px solid currentColor; font-size: 11px; }
-    .vllm { color: var(--vllm); } .hf { color: var(--hf); } .awq { color: var(--awq); } .llamacpp { color: var(--llamacpp); }
+    .vllm { color: var(--vllm); } .hf { color: var(--hf); } .awq { color: var(--awq); } .llamacpp { color: var(--llamacpp); } .vllm_awq { color: var(--vllm-awq); }
 
     .env { display: flex; flex-wrap: wrap; gap: 8px; }
     .env span { padding: 5px 9px; border: 1px solid var(--border); border-radius: 7px; background: var(--panel-2); color: var(--muted); font-size: 12px; }
@@ -215,6 +218,7 @@
         <span id="chips" class="toolbar"></span>
       </div>
       <svg id="lineChart" viewBox="0 0 920 380" role="img" aria-label="Line chart of selected metric by concurrency"></svg>
+      <p class="small">Whiskers show ±1 sample SD when repeats &gt; 1. The published snapshot has one repeat, so no whiskers appear until v2 data is loaded.</p>
     </div>
   </section>
 
@@ -254,9 +258,9 @@
       <ul class="caveats">
         <li><b>MMLU is a 40-question subset.</b> All Wilson 95% intervals overlap; point-estimate deltas are noise, not findings.</li>
         <li><b>AWQ vs HF is the clean quantization comparison</b> because both ran in the HF engine: 2,588 MiB vs 4,380 MiB, or 41% less VRAM. AWQ throughput was lower.</li>
-        <li><b>vLLM vs AWQ is confounded</b> by engine and quantization together. A vLLM+AWQ run is future work.</li>
+        <li><b>Published vLLM vs AWQ is confounded</b> by engine and quantization together. <code>configs/benchmark_v2.yaml</code> is prepared with a same-engine vLLM+AWQ run.</li>
         <li><b>vLLM memory includes preallocated KV cache.</b> It is not a model-weight-only footprint.</li>
-        <li><b>One repeat per concurrency level.</b> p95 variance is unknown.</li>
+        <li><b>Published run has one repeat per concurrency level.</b> p95 variance is unknown; v2 uses 3 repeats and adds error bars.</li>
       </ul>
       <p class="small">Full methodology and caveats: <a href="https://github.com/Ishan-5/LLM-inference-and-quantization-benchmark/blob/main/results/tradeoff_table.md">results/tradeoff_table.md ↗</a></p>
     </div>
@@ -268,7 +272,7 @@
 </div>
 
 <script>
-const COLORS = { vllm: "#58a6ff", hf: "#a371f7", awq: "#3fb950", llamacpp: "#d29922" };
+const COLORS = { vllm: "#58a6ff", hf: "#a371f7", awq: "#3fb950", llamacpp: "#d29922", vllm_awq: "#f778ba" };
 const BACKENDS = Object.keys(COLORS);
 const METRICS = {
   out_tok_s:   { label: "Output tokens / sec", max: 900,    fmt: v => v.toFixed(1) },
@@ -394,18 +398,27 @@ function drawLine() {
   out += `<text class="tick" x="${W / 2}" y="${H - 10}" text-anchor="middle">concurrent users</text>`;
   out += `<text class="tick" x="12" y="18">${cfg.label}</text>`;
 
+  const series = DATA.series || [];
   BACKENDS.filter(b => active.has(b)).forEach(b => {
     const pts = levels.map((c, i) => {
-      const row = (DATA.detail || []).find(d => d.backend === b && d.concurrency === c);
+      const row = series.find(d => d.backend === b && d.concurrency === c)
+        || (DATA.detail || []).find(d => d.backend === b && d.concurrency === c);
       const v = row ? row[key] : null;
-      return v == null ? null : [x(i), y(v), v, c];
+      if (v == null) return null;
+      const sd = row[key + "_sd"] || 0;
+      return [x(i), y(v), v, c, y(Math.max(0, v - sd)), y(Math.min(maxY, v + sd)), sd];
     }).filter(Boolean);
     if (!pts.length) return;
     out += `<polyline fill="none" stroke="${COLORS[b]}" stroke-width="3" stroke-linejoin="round"
               points="${pts.map(p => p[0] + ',' + p[1]).join(' ')}"/>`;
     pts.forEach(p => {
+      if (p[6]) {
+        out += `<line class="whisker" stroke="${COLORS[b]}" x1="${p[0]}" y1="${p[4]}" x2="${p[0]}" y2="${p[5]}"/>`;
+        out += `<line class="whisker" stroke="${COLORS[b]}" x1="${p[0] - 5}" y1="${p[4]}" x2="${p[0] + 5}" y2="${p[4]}"/>`;
+        out += `<line class="whisker" stroke="${COLORS[b]}" x1="${p[0] - 5}" y1="${p[5]}" x2="${p[0] + 5}" y2="${p[5]}"/>`;
+      }
       out += `<circle cx="${p[0]}" cy="${p[1]}" r="5" fill="${COLORS[b]}">
-                <title>${b} · ${p[3]} users · ${cfg.fmt(p[2])}</title>
+                <title>${b} · ${p[3]} users · ${cfg.fmt(p[2])}${p[6] ? " ± " + cfg.fmt(p[6]) + " SD" : ""}</title>
               </circle>`;
     });
   });
