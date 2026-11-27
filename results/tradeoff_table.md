@@ -54,8 +54,8 @@ Pick **`vllm`** for the latency/throughput-sensitive path: it delivered **810.0 
 - GGUF and 4-bit kernels are build-sensitive. Record the exact package versions from `results/raw/env_*.json`.
 - MMLU used a fixed subset of n=40 per backend. Wilson 95% intervals are in the headline table; point-estimate deltas are not statistically distinguishable at this size.
 - The configured 2-pp quality gate is smaller than one question at n=40. It is a screening heuristic, not a significance test.
-- There was one measured repeat per concurrency level, so p95 has no error bars. The published config stays at `repeats: 1` for reproducibility; `configs/benchmark_v2.yaml` is prepared with 3 repeats.
-- AWQ ran through the HF engine while vLLM ran FP16 through vLLM. Cross-engine comparisons confound engine and quantization; only HF vs AWQ isolates quantization. `configs/benchmark_v2.yaml` is prepared with a vLLM+AWQ run.
+- There was one measured repeat per concurrency level, so p95 has no error bars. `configs/benchmark_v2.yaml` completed a 3-repeat run in `results_v2/`.
+- AWQ ran through the HF engine while vLLM ran FP16 through vLLM. Cross-engine comparisons confound engine and quantization; only HF vs AWQ isolates quantization. `configs/benchmark_v2.yaml` completed a same-engine vLLM AWQ run in `results_v2/`.
 - vLLM's peak GPU memory includes preallocated KV cache. It is not a model-weight-only footprint and should not be used as a direct memory-efficiency comparison.
 - Streaming chunk counts are used as token arrival times for llama.cpp; vLLM/HF use native token IDs.
 - On native Windows, vLLM is unavailable and GPTQ wheels may lack CUDA kernels. Check `raw/env_*.json` and `raw/quality_*.json` before treating GPTQ quality numbers as valid.

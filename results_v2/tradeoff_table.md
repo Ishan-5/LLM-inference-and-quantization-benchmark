@@ -83,7 +83,7 @@ Pick **`vllm_awq`** for the latency/throughput-sensitive path: it delivered **1,
 ## Caveats
 
 - A T4 is memory-bandwidth constrained; rankings can change on A100/H100 class GPUs.
-- GGUF and 4-bit kernels are build-sensitive. Record the exact package versions from `results/raw/env_*.json`.
+- GGUF and 4-bit kernels are build-sensitive. Record the exact package versions from `results_v2/raw/env_*.json`.
 - MMLU used a fixed subset of n=200 per backend. Wilson 95% intervals are in the headline table; point-estimate deltas are not statistically distinguishable at this size.
 - The configured 2-pp quality gate is smaller than one question at n=200. It is a screening heuristic, not a significance test.
 - 3 repeats were measured per concurrency level. The headline table shows sample SD and the chart shows ±SD whiskers; a Student-t 95% interval is also stored in `summary.json`. Small n still means wide intervals.
