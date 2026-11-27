@@ -425,9 +425,8 @@ def build_report(results_dir: str | Path, cfg: AppConfig) -> dict[str, Any]:
         )
     else:
         repeat_caveat = (
-            "- There was one measured repeat per concurrency level, so p95 has no error bars. The "
-            "published config stays at `repeats: 1` for reproducibility; `configs/benchmark_v2.yaml` "
-            "is prepared with 3 repeats."
+            "- There was one measured repeat per concurrency level, so p95 has no error bars. "
+            "`configs/benchmark_v2.yaml` completed a 3-repeat run in `results_v2/`."
         )
     if any(str(r.get("backend")) == "vllm_awq" for r in perf_rows):
         confound_caveat = (
@@ -437,14 +436,15 @@ def build_report(results_dir: str | Path, cfg: AppConfig) -> dict[str, Any]:
     else:
         confound_caveat = (
             "- AWQ ran through the HF engine while vLLM ran FP16 through vLLM. Cross-engine comparisons "
-            "confound engine and quantization; only HF vs AWQ isolates quantization. `configs/benchmark_v2.yaml` "
-            "is prepared with a vLLM+AWQ run."
+            "confound engine and quantization; only HF vs AWQ isolates quantization. "
+            "`configs/benchmark_v2.yaml` completed a same-engine vLLM AWQ run in `results_v2/`."
         )
     lines += [
         "## Caveats",
         "",
         "- A T4 is memory-bandwidth constrained; rankings can change on A100/H100 class GPUs.",
-        "- GGUF and 4-bit kernels are build-sensitive. Record the exact package versions from `results/raw/env_*.json`.",
+        "- GGUF and 4-bit kernels are build-sensitive. Record the exact package versions from "
+        f"`{results_dir.as_posix()}/raw/env_*.json`.",
         f"- MMLU used a fixed subset of n={mmlu_n_text} per backend. Wilson 95% intervals are in the "
         "headline table; point-estimate deltas are not statistically distinguishable at this size.",
         f"- The configured {cfg.quality.max_acceptable_quality_loss_pp:g}-pp quality gate is smaller than "
