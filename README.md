@@ -5,7 +5,6 @@
 ![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white)
 ![CUDA](https://img.shields.io/badge/CUDA-T4-76B900?logo=nvidia&logoColor=white)
 ![vLLM](https://img.shields.io/badge/vLLM-0.34-blue)
-![Commits](https://img.shields.io/badge/commits-86-brightgreen)
 ![Results](https://img.shields.io/badge/results-4%20backends%20passed-success)
 
 **How fast and cheap can we run a useful small model — and what quality do we give up?**
