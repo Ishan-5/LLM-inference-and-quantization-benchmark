@@ -23,6 +23,13 @@
     "wall_s": 11.44,
     "perplexity": 23.6616109671741,
     "mmlu_accuracy_pct": 20.0,
+    "mmlu_correct": 4,
+    "mmlu_total": 20,
+    "mmlu_ci95": [
+      8.1,
+      41.6
+    ],
+    "mmlu_ci95_text": "8.1–41.6",
     "perplexity_note": "",
     "mmlu_note": "",
     "speedup_vs_baseline": 1.0,
@@ -53,6 +60,13 @@
       "wall_s": 14.29,
       "perplexity": 28.4624454799797,
       "mmlu_accuracy_pct": 20.0,
+      "mmlu_correct": 4,
+      "mmlu_total": 20,
+      "mmlu_ci95": [
+        8.1,
+        41.6
+      ],
+      "mmlu_ci95_text": "8.1–41.6",
       "perplexity_note": "",
       "mmlu_note": "",
       "speedup_vs_baseline": 0.8,
@@ -82,6 +96,13 @@
       "wall_s": 23.36,
       "perplexity": 151935.97667582906,
       "mmlu_accuracy_pct": 15.0,
+      "mmlu_correct": 3,
+      "mmlu_total": 20,
+      "mmlu_ci95": [
+        5.2,
+        36.0
+      ],
+      "mmlu_ci95_text": "5.2–36.0",
       "perplexity_note": "",
       "mmlu_note": "",
       "speedup_vs_baseline": 0.49,
@@ -111,6 +132,13 @@
       "wall_s": 11.44,
       "perplexity": 23.6616109671741,
       "mmlu_accuracy_pct": 20.0,
+      "mmlu_correct": 4,
+      "mmlu_total": 20,
+      "mmlu_ci95": [
+        8.1,
+        41.6
+      ],
+      "mmlu_ci95_text": "8.1–41.6",
       "perplexity_note": "",
       "mmlu_note": "",
       "speedup_vs_baseline": 1.0,
@@ -140,6 +168,13 @@
       "wall_s": 6.51,
       "perplexity": null,
       "mmlu_accuracy_pct": 15.0,
+      "mmlu_correct": 3,
+      "mmlu_total": 20,
+      "mmlu_ci95": [
+        5.2,
+        36.0
+      ],
+      "mmlu_ci95_text": "5.2–36.0",
       "perplexity_note": "logprobs is not supported for models created with logits_all=False",
       "mmlu_note": "",
       "speedup_vs_baseline": 1.76,

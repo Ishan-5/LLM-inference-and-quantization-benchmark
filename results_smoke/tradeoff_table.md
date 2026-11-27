@@ -1,16 +1,16 @@
 # Inference & quantization tradeoff report
 
 **Hardware:** NVIDIA GeForce RTX 3050 Laptop GPU (4,096 MiB VRAM)
-**Baseline:** `hf` · **Concurrent users tested:** 1, 2, 4
+**Baseline:** `hf` · **Concurrent users tested:** 1, 4, 8, 16
 
 ## Headline table (highest concurrency tested)
 
-| Setup | Concurrency | Out tok/s | Total tok/s | E2E p95 ms | TTFT p95 ms | Peak GPU MiB | MMLU % | WikiText PPL | ΔMMLU | ΔPPL | Speedup vs hf |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| awq | 4 | 53.73 | 116.77 | 7,312.77 | 148.37 | 944.50 | 20.00 | 28.46 | +0.00 | +4.801 | 0.80 |
-| gptq | 4 | 32.87 | 71.44 | 12,212.21 | 122.89 | 1,086.50 | 15.00 | 151,935.98 | -5.00 | +151,912.315 | 0.49 |
-| hf | 4 | 67.16 | 145.94 | 5,769.99 | 108.86 | 1,450.50 | 20.00 | 23.66 | +0.00 | +0.000 | 1.00 |
-| llamacpp | 4 | 117.96 | 230.55 | 3,260.44 | 2,476.53 | 766.50 | 15.00 | n/a | -5.00 | n/a | 1.76 |
+| Setup | Concurrency | Out tok/s | Total tok/s | E2E p95 ms | TTFT p95 ms | Peak GPU MiB | MMLU % | MMLU 95% CI | WikiText PPL | ΔMMLU | ΔPPL | Speedup vs hf |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| awq | 4 | 53.73 | 116.77 | 7,312.77 | 148.37 | 944.50 | 20.00 | 8.1–41.6 | 28.46 | +0.00 | +4.801 | 0.80 |
+| gptq | 4 | 32.87 | 71.44 | 12,212.21 | 122.89 | 1,086.50 | 15.00 | 5.2–36.0 | 151,935.98 | -5.00 | +151,912.315 | 0.49 |
+| hf | 4 | 67.16 | 145.94 | 5,769.99 | 108.86 | 1,450.50 | 20.00 | 8.1–41.6 | 23.66 | +0.00 | +0.000 | 1.00 |
+| llamacpp | 4 | 117.96 | 230.55 | 3,260.44 | 2,476.53 | 766.50 | 15.00 | 5.2–36.0 | n/a | -5.00 | n/a | 1.76 |
 
 ## Per-concurrency detail
 
@@ -31,21 +31,28 @@
 
 ## Recommendation
 
-Pick **`hf`** for the latency/throughput-sensitive path: it delivered **67.2 output tokens/sec** at concurrency 4 within the 3-point quality gate (ΔMMLU +0.00 pp). Peak GPU memory was **1,450 MiB**.
+Pick **`hf`** for the latency/throughput-sensitive path: it delivered **67.2 output tokens/sec** at concurrency 4, using the same FP16 weights as `hf`; identical MMLU is expected with greedy decoding and is not evidence of a quality advantage. Peak GPU memory was **1,450 MiB**, sampled during the measured window.
 
 ### Why this setup wins
 
 - The plain Transformers path is the honest baseline: standard PyTorch kernels and static batching.
 - It has no KV-cache paging and no continuous batching, so tail latency grows quickly as concurrency rises.
 - Its value is as the control condition that quantifies what the optimized runtimes actually buy you.
+- vLLM beating plain Transformers at high concurrency is a known result; the useful contribution here is the reproducible harness and the explicit uncertainty reporting.
 
 ### What to put on a resume
 
-> Benchmarked 4 inference setups under 4 concurrent users; found **hf** gives **1.00×** throughput versus plain Transformers at **0.00** points of MMLU change.
+> Built a reproducible harness for 4 inference setups at 1–16 concurrent users on NVIDIA GeForce RTX 3050 Laptop GPU; measured **hf** at **67.2 output tok/s** (1.00× HF) and quantified **AWQ's 35% VRAM reduction vs HF in the same engine**.
 
 ## Caveats
 
 - A T4 is memory-bandwidth constrained; rankings can change on A100/H100 class GPUs.
 - GGUF and 4-bit kernels are build-sensitive. Record the exact package versions from `results/raw/env_*.json`.
-- MMLU here is a small fixed subset, not a full leaderboard score. Use it only to detect regression, not to claim state of the art.
+- MMLU used a fixed subset of n=20 per backend. Wilson 95% intervals are in the headline table and overlap heavily; point-estimate deltas are not statistically distinguishable at this size. Future runs should use 200+ examples before making quality claims.
+- The configured 2-pp quality gate is smaller than one question at n=40. It is a screening heuristic, not a significance test.
+- There was one measured repeat per concurrency level, so p95 has no error bars. Future runs should set `repeats: 2` or `3`; the published config deliberately stays at 1 so it reproduces the reported numbers.
+- AWQ ran through the HF engine while vLLM ran FP16 through vLLM. Cross-engine comparisons confound engine and quantization; only HF vs AWQ isolates quantization. A vLLM+AWQ run is future work.
+- vLLM's peak GPU memory includes preallocated KV cache. It is not a model-weight-only footprint and should not be used as a direct memory-efficiency comparison.
 - Streaming chunk counts are used as token arrival times for llama.cpp; vLLM/HF use native token IDs.
+- On native Windows, vLLM is unavailable and GPTQ wheels may lack CUDA kernels. Check `raw/env_*.json` and `raw/quality_*.json` before treating GPTQ quality numbers as valid.
+- If a backend processes concurrent requests sequentially, its throughput rows are repeated single-stream measurements, not shared-server batching.
